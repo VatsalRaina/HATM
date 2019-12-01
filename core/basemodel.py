@@ -286,7 +286,7 @@ class BaseModel(object):
         else:
             combo = arr_unigrams
         
-        try_uniform = True
+        try_uniform = False
         if try_uniform:
             combo = np.full((379,379), 1.0)
 
@@ -310,7 +310,7 @@ class BaseModel(object):
         targets = tf.expand_dims(targets, axis=1)
         return targets, q_ids
 
-    def _sample_reverse(self, targets, q_ids, responses, response_lengths, batch_size, n_samples, p_id_weights, all_resps, all_resp_lens):
+    def _sample_reverse(self, targets, q_ids, responses, response_lengths, batch_size, n_samples, p_id_weights, sorted_resps, sorted_resp_lens, prompt_resp_ids, prompt_resp_id_lens, arr_unigrams):
         """ Dynamic generation of off-topic prompt-response pairs
         1) Count number of occurrences of each prompt ID in q_ids, number of occurrences=n_i
         2) For each prompt ID, samples n_i prompt IDs using p_id_weights
@@ -318,25 +318,76 @@ class BaseModel(object):
         4) Hence, n_i new off-topic prompt-response pairs are generated for each prompt ID
         """
         combo = p_id_weights
+        do_uniform = False
+        if do_uniform:
+            combo = np.full((379,379), 1.0)
+        do_unigram = True
+        if do_unigram:
+            combo = arr_unigrams
         # Normalise
         combo = combo/combo.sum(axis=1,keepdims=1)
-        sampled_indecies = tf.expand_dims(tf.distributions.Categorical(probs=list(combo[0])).sample(), axis=0)
+        combo = tf.convert_to_tensor(combo, dtype=tf.float32)
+        prompt_resp_ids = tf.convert_to_tensor(prompt_resp_ids, dtype=tf.int32)
+        prompt_resp_id_lens = tf.convert_to_tensor(prompt_resp_id_lens, dtype=tf.int32)
+        sorted_resp_lens = tf.convert_to_tensor(sorted_resp_lens, dtype=tf.int32)
+        sorted_resps = tf.convert_to_tensor(sorted_resps, dtype=tf.int32)
+        sampled_indecies = tf.expand_dims(tf.distributions.Categorical(probs=tf.gather(combo, q_ids[tf.constant(0)], axis=0)).sample(), axis=0)
         #print(tf.shape(sampled_indecies))
         for i in range(1, batch_size*n_samples):
-            curr = tf.distributions.Categorical(probs=list(combo[i])).sample()
+            curr = tf.distributions.Categorical(probs=tf.gather(combo, q_ids[i], axis=0)).sample()
             sampled_indecies = tf.concat([sampled_indecies, tf.expand_dims(curr, 0)], axis=0)
         sampled_indecies = tf.cast(sampled_indecies, dtype=tf.int32)
+        
         # Find corresponding new responses
-        new_resps = tf.nn.embedding_lookup(all_resps, sampled_indecies)
-        new_resp_lens = tf.gather(all_resp_lens, sampled_indecies)
+        all_resp_ids = tf.nn.embedding_lookup(prompt_resp_ids, sampled_indecies)
+        all_resp_id_lens = tf.nn.embedding_lookup(prompt_resp_id_lens, sampled_indecies)
+        max_resps = tf.reduce_max(all_resp_id_lens)
+        # Create mini-batch of uniform distributions
+        ones = tf.ones([all_resp_id_lens[0]], dtype=tf.float32)
+        zeros = tf.zeros([max_resps-all_resp_id_lens[0]], dtype=tf.float32)
+        uni_dists = tf.expand_dims(tf.concat([ones, zeros], axis=0), axis=0)
+        for i in range(1, batch_size*n_samples):
+            ones = tf.ones([all_resp_id_lens[i]], dtype=tf.float32)
+            zeros = tf.zeros([max_resps-all_resp_id_lens[i]], dtype=tf.float32)
+            curr = tf.expand_dims(tf.concat([ones, zeros], axis=0), axis=0)
+            uni_dists = tf.concat([uni_dists, curr], axis=0)
+        uni_dists = uni_dists / tf.reduce_sum(uni_dists, axis=1, keep_dims=True)
+        # Sample a single response index from each uniform distribution
+        sample_resp_id_index = tf.expand_dims(tf.distributions.Categorical(probs=uni_dists[0]).sample(), axis=0)
+        for i in range(1, batch_size*n_samples):
+            curr = tf.distributions.Categorical(probs=uni_dists[i]).sample()
+            sample_resp_id_index = tf.concat([sample_resp_id_index, tf.expand_dims(curr, 0)], axis=0)
+        sample_resp_ids = tf.expand_dims(all_resp_ids[0, sample_resp_id_index[0]], axis=0)
+        for i in range(1, batch_size*n_samples):
+            sample_resp_ids = tf.concat([sample_resp_ids, tf.expand_dims(all_resp_ids[i, sample_resp_id_index[i]], axis=0)], axis=0)
+        new_resps = tf.nn.embedding_lookup(sorted_resps, sample_resp_ids)        
+        new_resp_lens = tf.gather(sorted_resp_lens, sample_resp_ids)
+
         targets_sampled = tf.where(tf.equal(q_ids, sampled_indecies),
                                    tf.ones(shape=[batch_size * n_samples], dtype=tf.float32),
                                    tf.zeros(shape=[batch_size * n_samples], dtype=tf.float32))
-        response_lengths = tf.concat([response_lengths, new_resp_lens], axis=0)
+        
+        # Snip off excess 0s for new_responses
+        snip_len_1 = tf.shape(responses)[1]
+        snip_len_2 = tf.reduce_max(new_resp_lens)
+        #snip_len = tf.cond(tf.less(snip_len_1, snip_len_2), lambda: snip_len_2, lambda: snip_len_1) 
+        snip_len = snip_len_1 #TEMP
+        # Append 0s onto original responses
+        num_zeros = tf.subtract(snip_len_2, snip_len_1)
+        zeros = tf.zeros([batch_size*n_samples, tf.abs(num_zeros)], dtype=tf.int32)
+        #responses = tf.cond(tf.less(0, num_zeros), lambda: tf.concat([responses, zeros], axis=1), lambda: responses)
+        cidxs = tf.range(snip_len)
+        new_resps = tf.gather(new_resps, cidxs, axis=1)
+        corr_response_lengths = tf.concat([response_lengths, new_resp_lens], axis=0)
         responses = tf.concat([responses, new_resps], axis=0)
+        
         q_ids = tf.tile(q_ids, [n_samples+1])
         targets = tf.concat([targets, targets_sampled], axis=0)
-        targets = tf.expand_dims(targets, axis=1)    
+        targets = tf.expand_dims(targets, axis=1)
+        
+        # TEMPORARY
+        response_lengths = tf.tile(response_lengths, [n_samples + 1]) 
+    
         return targets, q_ids, responses, response_lengths
            
 

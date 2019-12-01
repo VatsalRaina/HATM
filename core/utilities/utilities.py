@@ -208,7 +208,7 @@ def load_text(data_path, words_index_path, strip_start_end=True):
     return data, slens
 
 
-def text_to_array(data_path, words_index_path, strip_start_end=True):
+def text_to_array(data_path, words_index_path, strip_start_end=False):
     data, slens = load_text(data_path, words_index_path, strip_start_end=strip_start_end)
 
     slens = np.asarray(slens, dtype=np.int32)
