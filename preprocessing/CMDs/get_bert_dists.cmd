@@ -16,3 +16,15 @@ make_sbert_weights.py
 make_sbert_dists.py
 make_sbert_dists.py
 make_sbert_weights.py
+./make_sorted_prompt-response.py
+./make_prompt-resp_ids.py
+./make_prompt-resp_ids.py
+./make_prompt-resp_ids.py
+./make_prompt-resp_ids.py
+./make_prompt-resp_ids.py
+./make_prompt-resp_ids.py
+./make_prompt-resp_ids.py
+./make_prompt-resp_ids.py
+./make_sorted_responses.py
+./make_sorted_responses.py
+./make_sorted_responses.py

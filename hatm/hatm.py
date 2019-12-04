@@ -589,7 +589,7 @@ class HierarchicialAttentionTopicModel(BaseModel):
             print (format_str % (duration))
             self.save()
 
-    def predict(self, test_pattern, batch_size=20, cache_inputs=False, apply_bucketing=True):
+    def predict(self, test_pattern, batch_size=1, cache_inputs=False, apply_bucketing=True):
         with self._graph.as_default():
             test_files = tf.gfile.Glob(test_pattern)
             if apply_bucketing:
@@ -713,9 +713,6 @@ class HierarchicialAttentionTopicModel(BaseModel):
                                                     test_probabilities,
                                                     test_attention,
                                                     test_targets, test_prompts])
-
-                print("Batch test prompts shape")
-                print(batch_test_prompts.shape)
                 size = batch_test_probs.shape[0]
                 test_loss += float(size) * batch_eval_loss
                 if count == 0:
@@ -729,6 +726,8 @@ class HierarchicialAttentionTopicModel(BaseModel):
 
                 total_size += size
                 count += 1
+                print(test_probs_arr)
+                print(count)
             except:  # todo: tf.errors.OutOfRangeError:
                 break
 

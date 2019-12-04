@@ -201,6 +201,12 @@ class AttentionTopicModel(BaseModel):
             load_path,
             topics,
             topic_lens,
+            aug_topics,
+            aug_topic_lens,
+            sorted_resps,
+            sorted_resp_lens,
+            prompt_resp_ids,
+            prompt_resp_id_lens,
             bert_dists,
             bert_weights,
             arr_unigrams,
@@ -256,19 +262,23 @@ class AttentionTopicModel(BaseModel):
                 valid_responses, \
                 valid_response_lengths, _, _ = valid_iterator.get_next(name='valid_data')
          
-                """
-                bert_dists = tf.convert_to_tensor(bert_dists, dtype=tf.float32)
+                # Data augmentation (positive example generation)
+                aug_q_ids = self._sample_augment(q_ids=q_ids)
+                aug_valid_q_ids = self._sample_augment(q_ids=valid_q_ids)
 
-                
-                targets_0, q_ids_0 = self._sampling_function(targets=targets,
-                                                         q_ids=q_ids,
-                                                         unigram_path=unigram_path,
-                                                         batch_size=batch_size,
-                                                         n_samples=n_samples,
-                                                         name='train',
-                                                         distortion=distortion,
-                                                         bert_dists=bert_dists)
-                
+                aug_targets, aug_q_ids = self._sample_refined(targets=targets,
+                                                              q_ids=aug_q_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+
+                aug_valid_targets, aug_valid_q_ids = self._sample_refined(targets=valid_targets,
+                                                              q_ids=aug_valid_q_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
 
                 targets, q_ids = self._sample_refined(targets=targets,
                                                       q_ids=q_ids,
@@ -277,14 +287,6 @@ class AttentionTopicModel(BaseModel):
                                                       arr_unigrams=arr_unigrams,
                                                       p_id_weights=bert_weights)            
 
-                valid_targets_o, valid_q_ids_o = self._sampling_function(targets=valid_targets,
-                                                                     q_ids=valid_q_ids,
-                                                                     unigram_path=unigram_path,
-                                                                     batch_size=batch_size,
-                                                                     n_samples=n_samples,
-                                                                     name='valid',
-                                                                     distortion=1.0,
-                                                                     bert_dists=bert_dists)
                 valid_targets, valid_q_ids = self._sample_refined(targets=valid_targets,
                                                                   q_ids=valid_q_ids,
                                                                   batch_size=batch_size,
@@ -292,37 +294,81 @@ class AttentionTopicModel(BaseModel):
                                                                   arr_unigrams=arr_unigrams,
                                                                   p_id_weights=bert_weights)
 
+
+                # Duplicate list of tensors for negative example generation and data augmentation               
+                response_lengths = tf.tile(response_lengths, [n_samples + 3])
+                responses = tf.tile(responses, [3 + n_samples, 1])
+                valid_response_lengths = tf.tile(valid_response_lengths, [n_samples + 3])
+                valid_responses = tf.tile(valid_responses, [3 + n_samples, 1])
+
                 """
 
-                targets, q_ids = self._sample_refined(targets=targets,
+                targets, q_ids, responses, corr_response_lengths = self._sample_reverse(targets=targets,
                                                       q_ids=q_ids,
                                                       responses=responses,
                                                       response_lengths=response_lengths,
                                                       batch_size=batch_size,
                                                       n_samples=n_samples,
                                                       p_id_weights=bert_weights,
-                                                      all_resps=all_resps,
-                                                      all_resp_lens=all_resp_lens)
+                                                      sorted_resps=sorted_resps,
+                                                      sorted_resp_lens=sorted_resp_lens,
+                                                      prompt_resp_ids=prompt_resp_ids,
+                                                      prompt_resp_id_lens=prompt_resp_id_lens,
+                                                      arr_unigrams=arr_unigrams)
 
-                valid_targets, valid_q_ids = self._sample_refined(targets=valid_targets,
+                valid_targets, valid_q_ids, valid_responses, valid_corr_response_lengths = self._sample_reverse(targets=valid_targets,
                                                       q_ids=valid_q_ids,
                                                       responses=valid_responses,
                                                       response_lengths=valid_response_lengths,
                                                       batch_size=batch_size,
                                                       n_samples=n_samples,
                                                       p_id_weights=bert_weights,
-                                                      all_resps=all_resps,
-                                                      all_resp_lens=all_resp_lens)
-    
+                                                      sorted_resps=sorted_resps,
+                                                      sorted_resp_lens=sorted_resp_lens,
+                                                      prompt_resp_ids=prompt_resp_ids,
+                                                      prompt_resp_id_lens=prompt_resp_id_lens,
+                                                      arr_unigrams=arr_unigrams)
+                """                
 
             topics = tf.convert_to_tensor(topics, dtype=tf.int32)
             topic_lens = tf.convert_to_tensor(topic_lens, dtype=tf.int32)
+            aug_topics = tf.convert_to_tensor(aug_topics, dtype=tf.int32)
+            aug_topic_lens = tf.convert_to_tensor(aug_topic_lens, dtype=tf.int32)
+
 
             prompts = tf.nn.embedding_lookup(topics, q_ids, name='train_prompt_loopkup')
             prompt_lens = tf.gather(topic_lens, q_ids)
 
             valid_prompts = tf.nn.embedding_lookup(topics, valid_q_ids, name='valid_prompt_loopkup')
             valid_prompt_lens = tf.gather(topic_lens, valid_q_ids)
+
+            aug_prompts = tf.nn.embedding_lookup(aug_topics, aug_q_ids, name='train_prompt_loopkup')
+            aug_prompt_lens = tf.gather(aug_topic_lens, aug_q_ids)
+
+            aug_valid_prompts = tf.nn.embedding_lookup(aug_topics, aug_valid_q_ids, name='valid_prompt_loopkup')
+            aug_valid_prompt_lens = tf.gather(aug_topic_lens, aug_valid_q_ids)
+
+            # Make all prompts tensors of same dimensions
+            num_zeros = tf.subtract(tf.shape(prompts)[1], tf.shape(aug_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            prompts = tf.cond(tf.less(0,num_zeros), lambda: prompts, lambda: tf.concat([prompts, zeros], axis=1))
+            aug_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug_prompts, zeros], axis=1), lambda: aug_prompts)
+            prompts = tf.concat([prompts, aug_prompts], axis=0)
+            prompt_lens = tf.concat([prompt_lens, aug_prompt_lens], axis=0)
+
+            num_zeros = tf.subtract(tf.shape(valid_prompts)[1], tf.shape(aug_valid_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: valid_prompts, lambda: tf.concat([valid_prompts, zeros], axis=1))
+            aug_valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug_valid_prompts, zeros], axis=1), lambda: aug_valid_prompts)
+            valid_prompts = tf.concat([valid_prompts, aug_valid_prompts], axis=0)
+            valid_prompt_lens = tf.concat([valid_prompt_lens, aug_valid_prompt_lens], axis=0)
+
+            targets = tf.concat([targets, aug_targets], axis=0)
+            valid_targets = tf.concat([valid_targets, aug_valid_targets], axis=0)
+
+        
+            # Batch size for positive examples has doubled
+            batch_size *= 2
 
             # Construct Training & Validation models
             with tf.variable_scope(self._model_scope, reuse=True) as scope:
@@ -394,9 +440,10 @@ class AttentionTopicModel(BaseModel):
                 loss = 0.0
                 batch_time = time.time()
                 for batch in xrange(n_batches):
-                    _, loss_value = self.sess.run([train_op, trn_cost], feed_dict={self.dropout: dropout})
+                    _, loss_value, bubba = self.sess.run([train_op, trn_cost, responses], feed_dict={self.dropout: dropout})
                     assert not np.isnan(loss_value), 'Model diverged with loss = NaN'
                     loss += loss_value
+                    print(bubba[-1])
 
                 duration = time.time() - batch_time
                 loss /= n_batches

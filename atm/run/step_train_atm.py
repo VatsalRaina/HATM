@@ -65,12 +65,18 @@ def main(args):
 
     train_size = get_train_size_from_meta(args.meta_data_path)
 
-    topics, topic_lens = text_to_array(args.topic_path, args.wlist_path, strip_start_end=args.strip_start_end)
-    if args.strip_start_end: print("Stripping the first and last word (should correspond to <s> and </s> marks) from the input prompts. Should only be used with legacy dataset formatting")
+    topics, topic_lens = text_to_array(args.topic_path, args.wlist_path, strip_start_end=False)
+    # Augmented data
+    aug_topics, aug_topic_lens = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/eda/data/one_aug.txt", args.wlist_path, strip_start_end=False)
+    #if args.strip_start_end: print("Stripping the first and last word (should correspond to <s> and </s> marks) from the input prompts. Should only be used with legacy dataset formatting")
 
     bert_dists = np.loadtxt("/home/alta/relevance/vr311/models_min_data/baseline/ATM/bert_dists.txt", dtype=np.float32)
     sbert_weights = np.loadtxt("/home/alta/relevance/vr311/models_min_data/baseline/ATM/sbert_weights.txt", dtype=np.float32)
     arr_unigrams = np.loadtxt("/home/alta/relevance/vr311/models_min_data/baseline/ATM/arr_unigrams.txt", dtype=np.float32)
+    sorted_resps = np.loadtxt("/home/alta/relevance/vr311/models_min_data/baseline/ATM/sorted_resps.txt", dtype=np.float32)
+    sorted_resp_lens = np.loadtxt("/home/alta/relevance/vr311/models_min_data/baseline/ATM/sorted_resp_lens.txt", dtype=np.float32)
+    prompt_resp_ids = np.loadtxt("/home/alta/relevance/vr311/models_min_data/baseline/ATM/prompt_resp_ids.txt", dtype=np.float32)
+    prompt_resp_id_lens = np.loadtxt("/home/alta/relevance/vr311/models_min_data/baseline/ATM/prompt_resp_id_lens.txt", dtype=np.float32)
 
     atm = AttentionTopicModel(network_architecture=None,
                               seed=args.seed,
@@ -85,6 +91,12 @@ def main(args):
             load_path=args.init,
             topics=topics,
             topic_lens=topic_lens,
+            aug_topics=aug_topics,
+            aug_topic_lens=aug_topic_lens,
+            sorted_resps=sorted_resps,
+            sorted_resp_lens=sorted_resp_lens,
+            prompt_resp_ids=prompt_resp_ids,
+            prompt_resp_id_lens=prompt_resp_id_lens,
             bert_dists = bert_dists,
             bert_weights = sbert_weights,
             arr_unigrams = arr_unigrams,

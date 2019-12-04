@@ -243,6 +243,10 @@ class BaseModel(object):
 
     # Trainnig cost/attention sampling functions
 
+    def _sample_augment(self, q_ids):
+        aug_q_ids = q_ids
+        return aug_q_ids        
+
     def _sampling_function(self, targets, q_ids, unigram_path, batch_size, n_samples, name, bert_dists, distortion=1.0):
         sampled_indecies, _, _ = tf.nn.fixed_unigram_candidate_sampler(
             tf.cast(tf.expand_dims(q_ids, axis=1), dtype=tf.int64),
@@ -295,11 +299,12 @@ class BaseModel(object):
             combo = p_id_weights
 
         # Normalise
-        combo = combo/combo.sum(axis=1,keepdims=1) 
-        sampled_indecies = tf.expand_dims(tf.distributions.Categorical(probs=list(combo[0])).sample(), axis=0)
+        combo = combo/combo.sum(axis=1,keepdims=1)
+        combo = tf.convert_to_tensor(combo, dtype=tf.float32) 
+        sampled_indecies = tf.expand_dims(tf.distributions.Categorical(probs=tf.gather(combo, q_ids[tf.constant(0)], axis=0)).sample(), axis=0)
         #print(tf.shape(sampled_indecies))
         for i in range(1, batch_size*n_samples):
-            curr = tf.distributions.Categorical(probs=list(combo[i])).sample()
+            curr = tf.distributions.Categorical(probs=tf.gather(combo, q_ids[i], axis=0)).sample()
             sampled_indecies = tf.concat([sampled_indecies, tf.expand_dims(curr, 0)], axis=0)
         sampled_indecies = tf.cast(sampled_indecies, dtype=tf.int32)
         targets_sampled = tf.where(tf.equal(q_ids, sampled_indecies),
