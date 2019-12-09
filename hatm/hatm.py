@@ -259,8 +259,8 @@ class HierarchicialAttentionTopicModel(BaseModel):
         outputs = tf.transpose(outputs, [1, 0, 2])
         outputs = tf.nn.dropout(outputs, keep_prob=keep_prob, seed=self._seed)
 
-        a_seqlens = tf.tile(a_seqlens, [n_samples + 1])
-        outputs = tf.tile(outputs, [1 + n_samples, 1, 1])
+        #a_seqlens = tf.tile(a_seqlens, [n_samples + 1])
+        #outputs = tf.tile(outputs, [1 + n_samples, 1, 1])
 
         hidden, attention = self._bahdanau_attention(memory=outputs, seq_lens=a_seqlens, maxlen=maxlen,
                                                      query=attended_prompt_embedding,
@@ -292,6 +292,8 @@ class HierarchicialAttentionTopicModel(BaseModel):
             load_path,
             topics,
             topic_lens,
+            aug_topics,
+            aug_topic_lens,
             bert_dists,
             bert_weights,
             arr_unigrams,
@@ -347,16 +349,24 @@ class HierarchicialAttentionTopicModel(BaseModel):
                 valid_responses, \
                 valid_response_lengths, _, _ = valid_iterator.get_next(name='valid_data')
 
-                bert_dists = tf.convert_to_tensor(bert_dists, dtype=tf.float32)
+                # Data augmentation (positive example generation)
+                aug_p_ids = self._sample_augment(q_ids=p_ids)
+                aug_valid_p_ids = self._sample_augment(q_ids=valid_p_ids)
 
-                targets_o, p_ids_o = self._sampling_function(targets=targets,
-                                                         q_ids=p_ids,
-                                                         unigram_path=unigram_path,
-                                                         batch_size=batch_size,
-                                                         n_samples=n_samples,
-                                                         name='train',
-                                                         bert_dists=bert_dists,
-                                                         distortion=distortion)
+                aug_targets, aug_p_ids = self._sample_refined(targets=targets,
+                                                              q_ids=aug_p_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)               
+                                         
+                
+                aug_valid_targets, aug_valid_p_ids = self._sample_refined(targets=valid_targets,
+                                                                          q_ids=aug_valid_p_ids,
+                                                                          batch_size=batch_size,
+                                                                          n_samples=n_samples,
+                                                                          arr_unigrams=arr_unigrams,
+                                                                          p_id_weights=bert_weights)
 
                 targets, p_ids = self._sample_refined(targets=targets,
                                                       q_ids=p_ids,
@@ -365,14 +375,7 @@ class HierarchicialAttentionTopicModel(BaseModel):
                                                       arr_unigrams=arr_unigrams,
                                                       p_id_weights=bert_weights)               
                                          
-                valid_targets_o, valid_p_ids_o = self._sampling_function(targets=valid_targets,
-                                                                     q_ids=valid_p_ids,
-                                                                     unigram_path=unigram_path,
-                                                                     batch_size=batch_size,
-                                                                     n_samples=n_samples,
-                                                                     name='valid',
-                                                                     bert_dists=bert_dists,
-                                                                     distortion=1.0)
+                
                 valid_targets, valid_p_ids = self._sample_refined(targets=valid_targets,
                                                                   q_ids=valid_p_ids,
                                                                   batch_size=batch_size,
@@ -381,14 +384,53 @@ class HierarchicialAttentionTopicModel(BaseModel):
                                                                   p_id_weights=bert_weights)    
 
 
+            # Duplicate list of tensors for negative example generation and data augmentation
+            response_lengths = tf.tile(response_lengths, [n_samples + 3])
+            responses = tf.tile(responses, [3 + n_samples, 1])
+            valid_response_lengths = tf.tile(valid_response_lengths, [n_samples + 3])
+            valid_responses = tf.tile(valid_responses, [3 + n_samples, 1])
+
             topics = tf.convert_to_tensor(topics, dtype=tf.int32)
             topic_lens = tf.convert_to_tensor(topic_lens, dtype=tf.int32)
+            aug_topics = tf.convert_to_tensor(aug_topics, dtype=tf.int32)
+            aug_topic_lens = tf.convert_to_tensor(aug_topic_lens, dtype=tf.int32)
+
 
             prompts = tf.nn.embedding_lookup(topics, p_ids, name='train_prompot_loopkup')
             prompt_lens = tf.gather(topic_lens, p_ids)
 
             valid_prompts = tf.nn.embedding_lookup(topics, valid_p_ids, name='valid_prompot_loopkup')
             valid_prompt_lens = tf.gather(topic_lens, valid_p_ids)
+
+            aug_prompts = tf.nn.embedding_lookup(aug_topics, aug_p_ids, name='train_prompot_loopkup')
+            aug_prompt_lens = tf.gather(aug_topic_lens, aug_p_ids)
+
+            aug_valid_prompts = tf.nn.embedding_lookup(aug_topics, aug_valid_p_ids, name='valid_prompot_loopkup')
+            aug_valid_prompt_lens = tf.gather(aug_topic_lens, aug_valid_p_ids)
+
+            # Make all prompts tensors of same dimensions
+            num_zeros = tf.subtract(tf.shape(prompts)[1], tf.shape(aug_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            prompts = tf.cond(tf.less(0,num_zeros), lambda: prompts, lambda: tf.concat([prompts, zeros], axis=1))
+            aug_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug_prompts, zeros], axis=1), lambda: aug_prompts)
+            prompts = tf.concat([prompts, aug_prompts], axis=0)
+            prompt_lens = tf.concat([prompt_lens, aug_prompt_lens], axis=0)
+
+            num_zeros = tf.subtract(tf.shape(valid_prompts)[1], tf.shape(aug_valid_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: valid_prompts, lambda: tf.concat([valid_prompts, zeros], axis=1))
+            aug_valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug_valid_prompts, zeros], axis=1), lambda: aug_valid_prompts)
+            valid_prompts = tf.concat([valid_prompts, aug_valid_prompts], axis=0)
+            valid_prompt_lens = tf.concat([valid_prompt_lens, aug_valid_prompt_lens], axis=0)
+
+            targets = tf.concat([targets, aug_targets], axis=0)
+            valid_targets = tf.concat([valid_targets, aug_valid_targets], axis=0)
+
+            # Batch size for positive examples has doubled
+            batch_size *= 2
+
+            p_ids = tf.concat([p_ids, aug_p_ids], axis=0)
+            valid_p_ids = tf.concat([valid_p_ids, aug_valid_p_ids], axis=0)
 
             # Construct Training & Validation models
             with tf.variable_scope(self._model_scope, reuse=True) as scope:
@@ -589,7 +631,7 @@ class HierarchicialAttentionTopicModel(BaseModel):
             print (format_str % (duration))
             self.save()
 
-    def predict(self, test_pattern, batch_size=1, cache_inputs=False, apply_bucketing=True):
+    def predict(self, test_pattern, batch_size=20, cache_inputs=False, apply_bucketing=True):
         with self._graph.as_default():
             test_files = tf.gfile.Glob(test_pattern)
             if apply_bucketing:

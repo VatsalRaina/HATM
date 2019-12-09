@@ -68,6 +68,15 @@ def main(args):
     topics, topic_lens = text_to_array(args.topic_path, args.wlist_path, strip_start_end=False)
     # Augmented data
     aug_topics, aug_topic_lens = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/eda/data/one_aug.txt", args.wlist_path, strip_start_end=False)
+    aug_topics2, aug_topic_lens2 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/eda/data/one_aug2.txt", args.wlist_path, strip_start_end=False)
+    aug_topics3, aug_topic_lens3 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/eda/data/one_aug3.txt", args.wlist_path, strip_start_end=False)
+    aug_topics4, aug_topic_lens4 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/eda/data/one_aug4.txt", args.wlist_path, strip_start_end=False)
+    aug_topics5, aug_topic_lens5 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/eda/data/one_aug5.txt", args.wlist_path, strip_start_end=False)
+    aug_topics6, aug_topic_lens6 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/eda/data/one_aug6.txt", args.wlist_path, strip_start_end=False)
+    aug_topics7, aug_topic_lens7 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/eda/data/one_aug7.txt", args.wlist_path, strip_start_end=False)
+    aug_topics8, aug_topic_lens8 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/eda/data/one_aug8.txt", args.wlist_path, strip_start_end=False)
+    aug_topics9, aug_topic_lens9 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/eda/data/one_aug9.txt", args.wlist_path, strip_start_end=False)
+
     #if args.strip_start_end: print("Stripping the first and last word (should correspond to <s> and </s> marks) from the input prompts. Should only be used with legacy dataset formatting")
 
     bert_dists = np.loadtxt("/home/alta/relevance/vr311/models_min_data/baseline/ATM/bert_dists.txt", dtype=np.float32)
@@ -93,6 +102,22 @@ def main(args):
             topic_lens=topic_lens,
             aug_topics=aug_topics,
             aug_topic_lens=aug_topic_lens,
+            aug_topics2=aug_topics2,
+            aug_topic_lens2=aug_topic_lens2,
+            aug_topics3=aug_topics3,
+            aug_topic_lens3=aug_topic_lens3,
+            aug_topics4=aug_topics4,
+            aug_topic_lens4=aug_topic_lens4,
+            aug_topics5=aug_topics5,
+            aug_topic_lens5=aug_topic_lens5,
+            aug_topics6=aug_topics6,
+            aug_topic_lens6=aug_topic_lens6,
+            aug_topics7=aug_topics7,
+            aug_topic_lens7=aug_topic_lens7,
+            aug_topics8=aug_topics8,
+            aug_topic_lens8=aug_topic_lens8,
+            aug_topics9=aug_topics9,
+            aug_topic_lens9=aug_topic_lens9,
             sorted_resps=sorted_resps,
             sorted_resp_lens=sorted_resp_lens,
             prompt_resp_ids=prompt_resp_ids,
