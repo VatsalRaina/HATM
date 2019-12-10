@@ -435,10 +435,10 @@ class AttentionTopicModel(BaseModel):
 
 
                 # Duplicate list of tensors for negative example generation and data augmentation               
-                response_lengths = tf.tile(response_lengths, [n_samples + 11])
-                responses = tf.tile(responses, [11 + n_samples, 1])
-                valid_response_lengths = tf.tile(valid_response_lengths, [n_samples + 11])
-                valid_responses = tf.tile(valid_responses, [11 + n_samples, 1])
+                response_lengths = tf.tile(response_lengths, [n_samples + 19])
+                responses = tf.tile(responses, [19 + n_samples, 1])
+                valid_response_lengths = tf.tile(valid_response_lengths, [n_samples + 19])
+                valid_responses = tf.tile(valid_responses, [19 + n_samples, 1])
 
                 """
 
