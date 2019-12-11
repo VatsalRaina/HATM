@@ -294,6 +294,22 @@ class HierarchicialAttentionTopicModel(BaseModel):
             topic_lens,
             aug_topics,
             aug_topic_lens,
+            aug_topics2,
+            aug_topic_lens2,
+            aug_topics3,
+            aug_topic_lens3,
+            aug_topics4,
+            aug_topic_lens4,
+            aug_topics5,
+            aug_topic_lens5,
+            aug_topics6,
+            aug_topic_lens6,
+            aug_topics7,
+            aug_topic_lens7,
+            aug_topics8,
+            aug_topic_lens8,
+            aug_topics9,
+            aug_topic_lens9,
             bert_dists,
             bert_weights,
             arr_unigrams,
@@ -352,6 +368,128 @@ class HierarchicialAttentionTopicModel(BaseModel):
                 # Data augmentation (positive example generation)
                 aug_p_ids = self._sample_augment(q_ids=p_ids)
                 aug_valid_p_ids = self._sample_augment(q_ids=valid_p_ids)
+                aug2_p_ids = self._sample_augment(q_ids=p_ids)
+                aug2_valid_p_ids = self._sample_augment(q_ids=valid_p_ids)
+                aug3_p_ids = self._sample_augment(q_ids=p_ids)
+                aug3_valid_p_ids = self._sample_augment(q_ids=valid_p_ids)
+                aug4_p_ids = self._sample_augment(q_ids=p_ids)
+                aug4_valid_p_ids = self._sample_augment(q_ids=valid_p_ids)
+                aug5_p_ids = self._sample_augment(q_ids=p_ids)
+                aug5_valid_p_ids = self._sample_augment(q_ids=valid_p_ids)
+                aug6_p_ids = self._sample_augment(q_ids=p_ids)
+                aug6_valid_p_ids = self._sample_augment(q_ids=valid_p_ids)
+                aug7_p_ids = self._sample_augment(q_ids=p_ids)
+                aug7_valid_p_ids = self._sample_augment(q_ids=valid_p_ids)
+                aug8_p_ids = self._sample_augment(q_ids=p_ids)
+                aug8_valid_p_ids = self._sample_augment(q_ids=valid_p_ids)
+                aug9_p_ids = self._sample_augment(q_ids=p_ids)
+                aug9_valid_p_ids = self._sample_augment(q_ids=valid_p_ids)
+
+                aug2_targets, aug2_p_ids = self._sample_refined(targets=targets,
+                                                              q_ids=aug2_p_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+
+                aug2_valid_targets, aug2_valid_p_ids = self._sample_refined(targets=valid_targets,
+                                                              q_ids=aug2_valid_p_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+                aug3_targets, aug3_p_ids = self._sample_refined(targets=targets,
+                                                              q_ids=aug3_p_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+
+                aug3_valid_targets, aug3_valid_p_ids = self._sample_refined(targets=valid_targets,
+                                                              q_ids=aug3_valid_p_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+                aug4_targets, aug4_p_ids = self._sample_refined(targets=targets,
+                                                              q_ids=aug4_p_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+
+                aug4_valid_targets, aug4_valid_p_ids = self._sample_refined(targets=valid_targets,
+                                                              q_ids=aug4_valid_p_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+                aug5_targets, aug5_p_ids = self._sample_refined(targets=targets,
+                                                              q_ids=aug5_p_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+
+                aug5_valid_targets, aug5_valid_p_ids = self._sample_refined(targets=valid_targets,
+                                                              q_ids=aug5_valid_p_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+                aug6_targets, aug6_p_ids = self._sample_refined(targets=targets,
+                                                              q_ids=aug6_p_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+
+                aug6_valid_targets, aug6_valid_p_ids = self._sample_refined(targets=valid_targets,
+                                                              q_ids=aug6_valid_p_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+                aug7_targets, aug7_p_ids = self._sample_refined(targets=targets,
+                                                              q_ids=aug7_p_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+
+                aug7_valid_targets, aug7_valid_p_ids = self._sample_refined(targets=valid_targets,
+                                                              q_ids=aug7_valid_p_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+                aug8_targets, aug8_p_ids = self._sample_refined(targets=targets,
+                                                              q_ids=aug8_p_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+
+                aug8_valid_targets, aug8_valid_p_ids = self._sample_refined(targets=valid_targets,
+                                                              q_ids=aug8_valid_p_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+                aug9_targets, aug9_p_ids = self._sample_refined(targets=targets,
+                                                              q_ids=aug9_p_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+
+                aug9_valid_targets, aug9_valid_p_ids = self._sample_refined(targets=valid_targets,
+                                                              q_ids=aug9_valid_p_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+
 
                 aug_targets, aug_p_ids = self._sample_refined(targets=targets,
                                                               q_ids=aug_p_ids,
@@ -385,15 +523,32 @@ class HierarchicialAttentionTopicModel(BaseModel):
 
 
             # Duplicate list of tensors for negative example generation and data augmentation
-            response_lengths = tf.tile(response_lengths, [n_samples + 3])
-            responses = tf.tile(responses, [3 + n_samples, 1])
-            valid_response_lengths = tf.tile(valid_response_lengths, [n_samples + 3])
-            valid_responses = tf.tile(valid_responses, [3 + n_samples, 1])
+            response_lengths = tf.tile(response_lengths, [n_samples + 19])
+            responses = tf.tile(responses, [19 + n_samples, 1])
+            valid_response_lengths = tf.tile(valid_response_lengths, [n_samples + 19])
+            valid_responses = tf.tile(valid_responses, [19 + n_samples, 1])
 
             topics = tf.convert_to_tensor(topics, dtype=tf.int32)
             topic_lens = tf.convert_to_tensor(topic_lens, dtype=tf.int32)
             aug_topics = tf.convert_to_tensor(aug_topics, dtype=tf.int32)
             aug_topic_lens = tf.convert_to_tensor(aug_topic_lens, dtype=tf.int32)
+            aug_topics2 = tf.convert_to_tensor(aug_topics2, dtype=tf.int32)
+            aug_topic_lens2 = tf.convert_to_tensor(aug_topic_lens2, dtype=tf.int32)
+            aug_topics3 = tf.convert_to_tensor(aug_topics3, dtype=tf.int32)
+            aug_topic_lens3 = tf.convert_to_tensor(aug_topic_lens3, dtype=tf.int32)
+            aug_topics4 = tf.convert_to_tensor(aug_topics4, dtype=tf.int32)
+            aug_topic_lens4 = tf.convert_to_tensor(aug_topic_lens4, dtype=tf.int32)
+            aug_topics5 = tf.convert_to_tensor(aug_topics5, dtype=tf.int32)
+            aug_topic_lens5 = tf.convert_to_tensor(aug_topic_lens5, dtype=tf.int32)
+            aug_topics6 = tf.convert_to_tensor(aug_topics6, dtype=tf.int32)
+            aug_topic_lens6 = tf.convert_to_tensor(aug_topic_lens6, dtype=tf.int32)
+            aug_topics7 = tf.convert_to_tensor(aug_topics7, dtype=tf.int32)
+            aug_topic_lens7 = tf.convert_to_tensor(aug_topic_lens7, dtype=tf.int32)
+            aug_topics8 = tf.convert_to_tensor(aug_topics8, dtype=tf.int32)
+            aug_topic_lens8 = tf.convert_to_tensor(aug_topic_lens8, dtype=tf.int32)
+            aug_topics9 = tf.convert_to_tensor(aug_topics9, dtype=tf.int32)
+            aug_topic_lens9 = tf.convert_to_tensor(aug_topic_lens9, dtype=tf.int32)
+
 
 
             prompts = tf.nn.embedding_lookup(topics, p_ids, name='train_prompot_loopkup')
@@ -407,6 +562,54 @@ class HierarchicialAttentionTopicModel(BaseModel):
 
             aug_valid_prompts = tf.nn.embedding_lookup(aug_topics, aug_valid_p_ids, name='valid_prompot_loopkup')
             aug_valid_prompt_lens = tf.gather(aug_topic_lens, aug_valid_p_ids)
+
+            aug2_prompts = tf.nn.embedding_lookup(aug_topics2, aug2_p_ids, name='train_prompt_loopkup')
+            aug2_prompt_lens = tf.gather(aug_topic_lens2, aug2_p_ids)
+
+            aug2_valid_prompts = tf.nn.embedding_lookup(aug_topics2, aug2_valid_p_ids, name='valid_prompt_loopkup')
+            aug2_valid_prompt_lens = tf.gather(aug_topic_lens2, aug2_valid_p_ids)
+
+            aug3_prompts = tf.nn.embedding_lookup(aug_topics3, aug3_p_ids, name='train_prompt_loopkup')
+            aug3_prompt_lens = tf.gather(aug_topic_lens3, aug3_p_ids)
+
+            aug3_valid_prompts = tf.nn.embedding_lookup(aug_topics3, aug3_valid_p_ids, name='valid_prompt_loopkup')
+            aug3_valid_prompt_lens = tf.gather(aug_topic_lens3, aug3_valid_p_ids)
+
+            aug4_prompts = tf.nn.embedding_lookup(aug_topics4, aug4_p_ids, name='train_prompt_loopkup')
+            aug4_prompt_lens = tf.gather(aug_topic_lens4, aug4_p_ids)
+
+            aug4_valid_prompts = tf.nn.embedding_lookup(aug_topics4, aug4_valid_p_ids, name='valid_prompt_loopkup')
+            aug4_valid_prompt_lens = tf.gather(aug_topic_lens4, aug4_valid_p_ids)
+
+            aug5_prompts = tf.nn.embedding_lookup(aug_topics5, aug5_p_ids, name='train_prompt_loopkup')
+            aug5_prompt_lens = tf.gather(aug_topic_lens5, aug5_p_ids)
+
+            aug5_valid_prompts = tf.nn.embedding_lookup(aug_topics5, aug5_valid_p_ids, name='valid_prompt_loopkup')
+            aug5_valid_prompt_lens = tf.gather(aug_topic_lens5, aug5_valid_p_ids)
+
+            aug6_prompts = tf.nn.embedding_lookup(aug_topics6, aug6_p_ids, name='train_prompt_loopkup')
+            aug6_prompt_lens = tf.gather(aug_topic_lens6, aug6_p_ids)
+
+            aug6_valid_prompts = tf.nn.embedding_lookup(aug_topics6, aug6_valid_p_ids, name='valid_prompt_loopkup')
+            aug6_valid_prompt_lens = tf.gather(aug_topic_lens6, aug6_valid_p_ids)
+
+            aug7_prompts = tf.nn.embedding_lookup(aug_topics7, aug7_p_ids, name='train_prompt_loopkup')
+            aug7_prompt_lens = tf.gather(aug_topic_lens7, aug7_p_ids)
+
+            aug7_valid_prompts = tf.nn.embedding_lookup(aug_topics7, aug7_valid_p_ids, name='valid_prompt_loopkup')
+            aug7_valid_prompt_lens = tf.gather(aug_topic_lens7, aug7_valid_p_ids)
+
+            aug8_prompts = tf.nn.embedding_lookup(aug_topics8, aug8_p_ids, name='train_prompt_loopkup')
+            aug8_prompt_lens = tf.gather(aug_topic_lens8, aug8_p_ids)
+
+            aug8_valid_prompts = tf.nn.embedding_lookup(aug_topics8, aug8_valid_p_ids, name='valid_prompt_loopkup')
+            aug8_valid_prompt_lens = tf.gather(aug_topic_lens8, aug8_valid_p_ids)
+
+            aug9_prompts = tf.nn.embedding_lookup(aug_topics9, aug9_p_ids, name='train_prompt_loopkup')
+            aug9_prompt_lens = tf.gather(aug_topic_lens9, aug9_p_ids)
+
+            aug9_valid_prompts = tf.nn.embedding_lookup(aug_topics9, aug9_valid_p_ids, name='valid_prompt_loopkup')
+            aug9_valid_prompt_lens = tf.gather(aug_topic_lens9, aug9_valid_p_ids)
 
             # Make all prompts tensors of same dimensions
             num_zeros = tf.subtract(tf.shape(prompts)[1], tf.shape(aug_prompts)[1])
@@ -423,14 +626,147 @@ class HierarchicialAttentionTopicModel(BaseModel):
             valid_prompts = tf.concat([valid_prompts, aug_valid_prompts], axis=0)
             valid_prompt_lens = tf.concat([valid_prompt_lens, aug_valid_prompt_lens], axis=0)
 
-            targets = tf.concat([targets, aug_targets], axis=0)
-            valid_targets = tf.concat([valid_targets, aug_valid_targets], axis=0)
+
+            num_zeros = tf.subtract(tf.shape(prompts)[1], tf.shape(aug2_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            zeros2 = tf.zeros([tf.shape(prompts)[0], tf.abs(num_zeros)], dtype=tf.int32)
+            prompts = tf.cond(tf.less(0,num_zeros), lambda: prompts, lambda: tf.concat([prompts, zeros2], axis=1))
+            aug2_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug2_prompts, zeros], axis=1), lambda: aug2_prompts)
+            prompts = tf.concat([prompts, aug2_prompts], axis=0)
+            prompt_lens = tf.concat([prompt_lens, aug2_prompt_lens], axis=0)
+
+            num_zeros = tf.subtract(tf.shape(valid_prompts)[1], tf.shape(aug2_valid_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            zeros2 = tf.zeros([tf.shape(valid_prompts)[0], tf.abs(num_zeros)], dtype=tf.int32)
+            valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: valid_prompts, lambda: tf.concat([valid_prompts, zeros2], axis=1))
+            aug2_valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug2_valid_prompts, zeros], axis=1), lambda: aug2_valid_prompts)
+            valid_prompts = tf.concat([valid_prompts, aug2_valid_prompts], axis=0)
+            valid_prompt_lens = tf.concat([valid_prompt_lens, aug2_valid_prompt_lens], axis=0)
+
+            num_zeros = tf.subtract(tf.shape(prompts)[1], tf.shape(aug3_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            zeros2 = tf.zeros([tf.shape(prompts)[0], tf.abs(num_zeros)], dtype=tf.int32)
+            prompts = tf.cond(tf.less(0,num_zeros), lambda: prompts, lambda: tf.concat([prompts, zeros2], axis=1))
+            aug3_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug3_prompts, zeros], axis=1), lambda: aug3_prompts)
+            prompts = tf.concat([prompts, aug3_prompts], axis=0)
+            prompt_lens = tf.concat([prompt_lens, aug3_prompt_lens], axis=0)
+
+            num_zeros = tf.subtract(tf.shape(valid_prompts)[1], tf.shape(aug3_valid_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            zeros2 = tf.zeros([tf.shape(valid_prompts)[0], tf.abs(num_zeros)], dtype=tf.int32)
+            valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: valid_prompts, lambda: tf.concat([valid_prompts, zeros2], axis=1))
+            aug3_valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug3_valid_prompts, zeros], axis=1), lambda: aug3_valid_prompts)
+            valid_prompts = tf.concat([valid_prompts, aug3_valid_prompts], axis=0)
+            valid_prompt_lens = tf.concat([valid_prompt_lens, aug3_valid_prompt_lens], axis=0)
+
+            num_zeros = tf.subtract(tf.shape(prompts)[1], tf.shape(aug4_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            zeros2 = tf.zeros([tf.shape(prompts)[0], tf.abs(num_zeros)], dtype=tf.int32)
+            prompts = tf.cond(tf.less(0,num_zeros), lambda: prompts, lambda: tf.concat([prompts, zeros2], axis=1))
+            aug4_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug4_prompts, zeros], axis=1), lambda: aug4_prompts)
+            prompts = tf.concat([prompts, aug4_prompts], axis=0)
+            prompt_lens = tf.concat([prompt_lens, aug4_prompt_lens], axis=0)
+
+            num_zeros = tf.subtract(tf.shape(valid_prompts)[1], tf.shape(aug4_valid_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            zeros2 = tf.zeros([tf.shape(valid_prompts)[0], tf.abs(num_zeros)], dtype=tf.int32)
+            valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: valid_prompts, lambda: tf.concat([valid_prompts, zeros2], axis=1))
+            aug4_valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug4_valid_prompts, zeros], axis=1), lambda: aug4_valid_prompts)
+            valid_prompts = tf.concat([valid_prompts, aug4_valid_prompts], axis=0)
+            valid_prompt_lens = tf.concat([valid_prompt_lens, aug4_valid_prompt_lens], axis=0)
+
+            num_zeros = tf.subtract(tf.shape(prompts)[1], tf.shape(aug5_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            zeros2 = tf.zeros([tf.shape(prompts)[0], tf.abs(num_zeros)], dtype=tf.int32)
+            prompts = tf.cond(tf.less(0,num_zeros), lambda: prompts, lambda: tf.concat([prompts, zeros2], axis=1))
+            aug5_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug5_prompts, zeros], axis=1), lambda: aug5_prompts)
+            prompts = tf.concat([prompts, aug5_prompts], axis=0)
+            prompt_lens = tf.concat([prompt_lens, aug5_prompt_lens], axis=0)
+
+            num_zeros = tf.subtract(tf.shape(valid_prompts)[1], tf.shape(aug5_valid_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            zeros2 = tf.zeros([tf.shape(valid_prompts)[0], tf.abs(num_zeros)], dtype=tf.int32)
+            valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: valid_prompts, lambda: tf.concat([valid_prompts, zeros2], axis=1))
+            aug5_valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug5_valid_prompts, zeros], axis=1), lambda: aug5_valid_prompts)
+            valid_prompts = tf.concat([valid_prompts, aug5_valid_prompts], axis=0)
+            valid_prompt_lens = tf.concat([valid_prompt_lens, aug5_valid_prompt_lens], axis=0)
+
+            num_zeros = tf.subtract(tf.shape(prompts)[1], tf.shape(aug6_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            zeros2 = tf.zeros([tf.shape(prompts)[0], tf.abs(num_zeros)], dtype=tf.int32)
+            prompts = tf.cond(tf.less(0,num_zeros), lambda: prompts, lambda: tf.concat([prompts, zeros2], axis=1))
+            aug6_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug6_prompts, zeros], axis=1), lambda: aug6_prompts)
+            prompts = tf.concat([prompts, aug6_prompts], axis=0)
+            prompt_lens = tf.concat([prompt_lens, aug6_prompt_lens], axis=0)
+
+            num_zeros = tf.subtract(tf.shape(valid_prompts)[1], tf.shape(aug6_valid_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            zeros2 = tf.zeros([tf.shape(valid_prompts)[0], tf.abs(num_zeros)], dtype=tf.int32)
+            valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: valid_prompts, lambda: tf.concat([valid_prompts, zeros2], axis=1))
+            aug6_valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug6_valid_prompts, zeros], axis=1), lambda: aug6_valid_prompts)
+            valid_prompts = tf.concat([valid_prompts, aug6_valid_prompts], axis=0)
+            valid_prompt_lens = tf.concat([valid_prompt_lens, aug6_valid_prompt_lens], axis=0)
+
+
+            num_zeros = tf.subtract(tf.shape(prompts)[1], tf.shape(aug7_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            zeros2 = tf.zeros([tf.shape(prompts)[0], tf.abs(num_zeros)], dtype=tf.int32)
+            prompts = tf.cond(tf.less(0,num_zeros), lambda: prompts, lambda: tf.concat([prompts, zeros2], axis=1))
+            aug7_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug7_prompts, zeros], axis=1), lambda: aug7_prompts)
+            prompts = tf.concat([prompts, aug7_prompts], axis=0)
+            prompt_lens = tf.concat([prompt_lens, aug7_prompt_lens], axis=0)
+
+            num_zeros = tf.subtract(tf.shape(valid_prompts)[1], tf.shape(aug7_valid_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            zeros2 = tf.zeros([tf.shape(valid_prompts)[0], tf.abs(num_zeros)], dtype=tf.int32)
+            valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: valid_prompts, lambda: tf.concat([valid_prompts, zeros2], axis=1))
+            aug7_valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug7_valid_prompts, zeros], axis=1), lambda: aug7_valid_prompts)
+            valid_prompts = tf.concat([valid_prompts, aug7_valid_prompts], axis=0)
+            valid_prompt_lens = tf.concat([valid_prompt_lens, aug7_valid_prompt_lens], axis=0)
+
+
+            num_zeros = tf.subtract(tf.shape(prompts)[1], tf.shape(aug8_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            zeros2 = tf.zeros([tf.shape(prompts)[0], tf.abs(num_zeros)], dtype=tf.int32)
+            prompts = tf.cond(tf.less(0,num_zeros), lambda: prompts, lambda: tf.concat([prompts, zeros2], axis=1))
+            aug8_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug8_prompts, zeros], axis=1), lambda: aug8_prompts)
+            prompts = tf.concat([prompts, aug8_prompts], axis=0)
+            prompt_lens = tf.concat([prompt_lens, aug8_prompt_lens], axis=0)
+
+            num_zeros = tf.subtract(tf.shape(valid_prompts)[1], tf.shape(aug8_valid_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            zeros2 = tf.zeros([tf.shape(valid_prompts)[0], tf.abs(num_zeros)], dtype=tf.int32)
+            valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: valid_prompts, lambda: tf.concat([valid_prompts, zeros2], axis=1))
+            aug8_valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug8_valid_prompts, zeros], axis=1), lambda: aug8_valid_prompts)
+            valid_prompts = tf.concat([valid_prompts, aug8_valid_prompts], axis=0)
+            valid_prompt_lens = tf.concat([valid_prompt_lens, aug8_valid_prompt_lens], axis=0)
+
+
+            num_zeros = tf.subtract(tf.shape(prompts)[1], tf.shape(aug9_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            zeros2 = tf.zeros([tf.shape(prompts)[0], tf.abs(num_zeros)], dtype=tf.int32)
+            prompts = tf.cond(tf.less(0,num_zeros), lambda: prompts, lambda: tf.concat([prompts, zeros2], axis=1))
+            aug9_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug9_prompts, zeros], axis=1), lambda: aug9_prompts)
+            prompts = tf.concat([prompts, aug9_prompts], axis=0)
+            prompt_lens = tf.concat([prompt_lens, aug9_prompt_lens], axis=0)
+
+            num_zeros = tf.subtract(tf.shape(valid_prompts)[1], tf.shape(aug9_valid_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            zeros2 = tf.zeros([tf.shape(valid_prompts)[0], tf.abs(num_zeros)], dtype=tf.int32)
+            valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: valid_prompts, lambda: tf.concat([valid_prompts, zeros2], axis=1))
+            aug9_valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug9_valid_prompts, zeros], axis=1), lambda: aug9_valid_prompts)
+            valid_prompts = tf.concat([valid_prompts, aug9_valid_prompts], axis=0)
+            valid_prompt_lens = tf.concat([valid_prompt_lens, aug9_valid_prompt_lens], axis=0)
+
+            targets = tf.concat([targets, aug_targets, aug2_targets, aug3_targets, aug4_targets, aug5_targets, aug6_targets, aug7_targets, aug8_targets, aug9_targets], axis=0)
+            valid_targets = tf.concat([valid_targets, aug_valid_targets, aug2_valid_targets, aug3_valid_targets, aug4_valid_targets, aug5_valid_targets, aug6_valid_targets, aug7_valid_targets, aug8_valid_targets, aug9_valid_targets], axis=0)
+
 
             # Batch size for positive examples has doubled
-            batch_size *= 2
+            batch_size *= 10
 
-            p_ids = tf.concat([p_ids, aug_p_ids], axis=0)
-            valid_p_ids = tf.concat([valid_p_ids, aug_valid_p_ids], axis=0)
+            p_ids = tf.concat([p_ids, aug_p_ids, aug2_p_ids, aug3_p_ids, aug4_p_ids, aug5_p_ids, aug6_p_ids, aug7_p_ids, aug8_p_ids, aug9_p_ids], axis=0)
+            valid_p_ids = tf.concat([valid_p_ids, aug_valid_p_ids, aug2_valid_p_ids, aug3_valid_p_ids, aug4_valid_p_ids, aug5_valid_p_ids, aug6_valid_p_ids, aug7_valid_p_ids, aug8_valid_p_ids, aug9_valid_p_ids], axis=0)
 
             # Construct Training & Validation models
             with tf.variable_scope(self._model_scope, reuse=True) as scope:
