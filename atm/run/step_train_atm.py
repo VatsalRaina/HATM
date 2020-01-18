@@ -67,15 +67,25 @@ def main(args):
 
     topics, topic_lens = text_to_array(args.topic_path, args.wlist_path, strip_start_end=False)
     # Augmented data
-    aug_topics, aug_topic_lens = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/eda/data/one_aug.txt", args.wlist_path, strip_start_end=False)
-    aug_topics2, aug_topic_lens2 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/eda/data/one_aug2.txt", args.wlist_path, strip_start_end=False)
-    aug_topics3, aug_topic_lens3 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/eda/data/one_aug3.txt", args.wlist_path, strip_start_end=False)
-    aug_topics4, aug_topic_lens4 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/eda/data/one_aug4.txt", args.wlist_path, strip_start_end=False)
-    aug_topics5, aug_topic_lens5 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/eda/data/one_aug5.txt", args.wlist_path, strip_start_end=False)
-    aug_topics6, aug_topic_lens6 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/eda/data/one_aug6.txt", args.wlist_path, strip_start_end=False)
-    aug_topics7, aug_topic_lens7 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/eda/data/one_aug7.txt", args.wlist_path, strip_start_end=False)
-    aug_topics8, aug_topic_lens8 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/eda/data/one_aug8.txt", args.wlist_path, strip_start_end=False)
-    aug_topics9, aug_topic_lens9 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/eda/data/one_aug9.txt", args.wlist_path, strip_start_end=False)
+    aug_topics, aug_topic_lens = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/translate/ar1.txt", args.wlist_path, strip_start_end=False)
+    aug_topics2, aug_topic_lens2 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/translate/de1.txt", args.wlist_path, strip_start_end=False)
+    aug_topics3, aug_topic_lens3 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/translate/fr1.txt", args.wlist_path, strip_start_end=False)
+    aug_topics4, aug_topic_lens4 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/translate/greek1.txt", args.wlist_path, strip_start_end=False)
+    aug_topics5, aug_topic_lens5 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/translate/hebrew1.txt", args.wlist_path, strip_start_end=False)
+    aug_topics6, aug_topic_lens6 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/translate/hi1.txt", args.wlist_path, strip_start_end=False)
+    aug_topics7, aug_topic_lens7 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/translate/ja1.txt", args.wlist_path, strip_start_end=False)
+    aug_topics8, aug_topic_lens8 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/translate/ko1.txt", args.wlist_path, strip_start_end=False)
+    aug_topics9, aug_topic_lens9 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/translate/ru1.txt", args.wlist_path, strip_start_end=False)
+    aug_topics10, aug_topic_lens10 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/translate/af1.txt", args.wlist_path, strip_start_end=False)
+    aug_topics11, aug_topic_lens11 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/eda/data/one_aug.txt", args.wlist_path, strip_start_end=False)
+    aug_topics12, aug_topic_lens12 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/eda/data/one_aug2.txt", args.wlist_path, strip_start_end=False)
+    aug_topics13, aug_topic_lens13 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/eda/data/one_aug3.txt", args.wlist_path, strip_start_end=False)
+    aug_topics14, aug_topic_lens14 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/eda/data/one_aug4.txt", args.wlist_path, strip_start_end=False)
+    aug_topics15, aug_topic_lens15 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/eda/data/one_aug5.txt", args.wlist_path, strip_start_end=False)
+    aug_topics16, aug_topic_lens16 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/eda/data/one_aug6.txt", args.wlist_path, strip_start_end=False)
+    aug_topics17, aug_topic_lens17 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/eda/data/one_aug7.txt", args.wlist_path, strip_start_end=False)
+    aug_topics18, aug_topic_lens18 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/eda/data/one_aug8.txt", args.wlist_path, strip_start_end=False)
+    aug_topics19, aug_topic_lens19 = text_to_array("/home/alta/relevance/vr311/data_vatsal/BULATS/eda/data/one_aug9.txt", args.wlist_path, strip_start_end=False)
 
     #if args.strip_start_end: print("Stripping the first and last word (should correspond to <s> and </s> marks) from the input prompts. Should only be used with legacy dataset formatting")
 
@@ -118,6 +128,26 @@ def main(args):
             aug_topic_lens8=aug_topic_lens8,
             aug_topics9=aug_topics9,
             aug_topic_lens9=aug_topic_lens9,
+            aug_topics10=aug_topics10,
+            aug_topic_lens10=aug_topic_lens10,
+            aug_topics11=aug_topics11,
+            aug_topic_lens11=aug_topic_lens11,
+            aug_topics12=aug_topics12,
+            aug_topic_lens12=aug_topic_lens12,
+            aug_topics13=aug_topics13,
+            aug_topic_lens13=aug_topic_lens13,
+            aug_topics14=aug_topics14,
+            aug_topic_lens14=aug_topic_lens14,
+            aug_topics15=aug_topics15,
+            aug_topic_lens15=aug_topic_lens15,
+            aug_topics16=aug_topics16,
+            aug_topic_lens16=aug_topic_lens16,
+            aug_topics17=aug_topics17,
+            aug_topic_lens17=aug_topic_lens17,
+            aug_topics18=aug_topics18,
+            aug_topic_lens18=aug_topic_lens18,
+            aug_topics19=aug_topics19,
+            aug_topic_lens19=aug_topic_lens19,
             sorted_resps=sorted_resps,
             sorted_resp_lens=sorted_resp_lens,
             prompt_resp_ids=prompt_resp_ids,
