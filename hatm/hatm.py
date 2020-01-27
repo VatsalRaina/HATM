@@ -156,6 +156,26 @@ class HierarchicialAttentionTopicModel(BaseModel):
                                             initializer=tf.truncated_normal_initializer(stddev=0.1),
                                             regularizer=slim.l2_regularizer(L2),
                                             device='/GPU:0')
+
+            """
+            # Temp to check effect of normalising word embeddings
+            norm = tf.sqrt(tf.reduce_sum(tf.square(embedding), 1, keep_dims=True))
+            norm_embedding = embedding / norm
+            """
+
+            """
+            # Adversarial training
+            if is_training:
+                noise = tf.random_normal(shape=[self.network_architecture['n_in'], self.network_architecture['n_ehid']], mean=0.0, stddev=0.1, dtype=tf.float32, seed=self._seed)
+                embedding = embedding + noise
+                
+                noise_a = tf.random.normal(shape=[batch_size*2, self.network_architecture['n_ehid']], mean=0.0, stddev=0.1, dtype=tf.float32, seed=self._seed)
+                noise_p = tf.random.normal(shape=[batch_size*2, self.network_architecture['n_ehid']], mean=0.0, stddev=0.1, dtype=tf.float32, seed=self._seed)
+                a_inputs = a_inputs + noise_a
+                p_inputs = p_inputs + noise_p
+                
+            """
+
             a_inputs = tf.nn.dropout(tf.nn.embedding_lookup(embedding, a_input, name='embedded_data'),
                                      keep_prob=keep_prob, seed=self._seed + 1)
             p_inputs = tf.nn.dropout(tf.nn.embedding_lookup(embedding, p_input, name='embedded_data'),
@@ -168,11 +188,6 @@ class HierarchicialAttentionTopicModel(BaseModel):
             a_inputs_fw = tf.transpose(a_inputs, [1, 0, 2])
             a_inputs_bw = tf.transpose(tf.reverse_sequence(a_inputs, seq_lengths=a_seqlens, seq_axis=1, batch_axis=0),
                                        [1, 0, 2])
-
-        print("p_ids: ")
-        print(p_ids.shape)
-        print("p_inputs: ")
-        print(p_inputs.shape)
 
 
         if run_prompt_encoder == True:
@@ -199,11 +214,6 @@ class HierarchicialAttentionTopicModel(BaseModel):
 
 
         keys = tf.nn.dropout(tf.concat([state_fw[1], state_bw[1]], axis=1), keep_prob=keep_prob, seed=self._seed + 10)
-
-        print("prompt_embeddings: ")
-        print(prompt_embeddings.shape)
-        print("keys: ")
-        print(keys.shape)
 
 
         with tf.variable_scope('PROMPT_ATN', initializer=initializer(self._seed)) as scope:
@@ -245,6 +255,18 @@ class HierarchicialAttentionTopicModel(BaseModel):
             prompt_attention = a / tf.reduce_sum(a, axis=1, keep_dims=True)
             attended_prompt_embedding = tf.matmul(prompt_attention, prompt_embeddings)
 
+         
+        with tf.variable_scope('ADV', initializer=(self._seed)) as scope:
+            # Add adversarial vector to be learnt
+            adv_embd = slim.model_variable('adversarial',
+                                           shape = [2*self.network_architecture['n_phid']],
+                                           initializer=tf.truncated_normal_initializer(stddev=0.1),
+                                           regularizer=slim.l2_regularizer(L2),
+                                           device='/GPU:0' )
+
+            # adv_embd should be broadcasted automatically
+            attended_prompt_embedding = tf.add(attended_prompt_embedding, adv_embd)
+        
 
         # Response Encoder RNN
         with tf.variable_scope('RNN_A_FW', initializer=initializer(self._seed)) as scope:
@@ -384,7 +406,7 @@ class HierarchicialAttentionTopicModel(BaseModel):
                 valid_p_ids, \
                 valid_responses, \
                 valid_response_lengths, _, _ = valid_iterator.get_next(name='valid_data')
-
+                
                 # Data augmentation (positive example generation)
                 
                 aug_p_ids = self._sample_augment(q_ids=p_ids)
@@ -682,7 +704,7 @@ class HierarchicialAttentionTopicModel(BaseModel):
                                                                           n_samples=n_samples,
                                                                           arr_unigrams=arr_unigrams,
                                                                           p_id_weights=bert_weights)
-                
+               
                 targets, p_ids = self._sample_refined(targets=targets,
                                                       q_ids=p_ids,
                                                       batch_size=batch_size,
@@ -748,7 +770,7 @@ class HierarchicialAttentionTopicModel(BaseModel):
             aug_topic_lens19 = tf.convert_to_tensor(aug_topic_lens19, dtype=tf.int32)            
 
 
-
+            
 
             prompts = tf.nn.embedding_lookup(topics, p_ids, name='train_prompot_loopkup')
             prompt_lens = tf.gather(topic_lens, p_ids)
@@ -1234,9 +1256,10 @@ class HierarchicialAttentionTopicModel(BaseModel):
                                                  pos_weight=float(n_samples),
                                                  is_training=False)
 
-            variables1 =tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='.*((PROMPT_ATN)|(RNN_KEY)).*')
+            variables1 =tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='.*((PROMPT_ATN)|(RNN_KEY)|(ADV)).*')
             variables2 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,
-                                           scope='.*((PROMPT_ATN)|(RNN_KEY)|(Attention)).*')
+                                           scope='.*((PROMPT_ATN)|(RNN_KEY)|(ADV)|(Attention)).*')
+            variables_adv = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='.*((ADV)).*')
             train_op_new = util.create_train_op(total_loss=total_loss,
                                             learning_rate=learning_rate,
                                             optimizer=optimizer,
@@ -1264,6 +1287,17 @@ class HierarchicialAttentionTopicModel(BaseModel):
                                             optimizer=optimizer,
                                             optimizer_params=optimizer_params,
                                             n_examples=n_examples,
+                                            batch_size=batch_size,
+                                            learning_rate_decay=lr_decay,
+                                            global_step=global_step,
+                                            clip_gradient_norm=10.0,
+                                            summarize_gradients=False)
+            train_op_adv = util.create_train_op(total_loss=total_loss,
+                                            learning_rate=learning_rate,
+                                            optimizer=optimizer,
+                                            optimizer_params=optimizer_params,
+                                            n_examples=n_examples,
+                                            variables_to_train=variables_adv,
                                             batch_size=batch_size,
                                             learning_rate_decay=lr_decay,
                                             global_step=global_step,
@@ -1337,6 +1371,8 @@ class HierarchicialAttentionTopicModel(BaseModel):
                        # print(x9e.shape)
                     elif epoch == 3:
                         _, loss_value = self.sess.run([train_op_atn, trn_cost], feed_dict={self.dropout: dropout})
+                    elif epoch == 4:
+                        _, loss_value = self.sess.run([train_op_adv, trn_cost], feed_dict={self.dropout: dropout})
                     else:
                         _, loss_value = self.sess.run([train_op_all, trn_cost], feed_dict={self.dropout: dropout})
                     assert not np.isnan(loss_value), 'Model diverged with loss = NaN'

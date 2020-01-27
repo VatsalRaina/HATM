@@ -66,7 +66,7 @@ class AttentionTopicModel(BaseModel):
             self.load(load_path=load_path, step=epoch)
 
 
-    def _construct_network(self, a_input, a_seqlens, n_samples, q_input, q_seqlens, maxlen, batch_size, keep_prob=1.0):
+    def _construct_network(self, a_input, a_seqlens, n_samples, q_input, q_seqlens, maxlen, batch_size, is_training=False, keep_prob=1.0):
         """
 
         :param a_input:
@@ -92,10 +92,23 @@ class AttentionTopicModel(BaseModel):
                                             initializer=tf.truncated_normal_initializer(stddev=0.1),
                                             regularizer=slim.l2_regularizer(L2),
                                             device='/GPU:0')
+           
+            """
+            # Adversarial training through injecting noise
+            if is_training:
+                    noise = tf.random_normal(shape=[self.network_architecture['n_in'], self.network_architecture['n_ehid']], mean=0.0, stddev=0.1, dtype=tf.float32, seed=self._seed)
+                    embedding = embedding + noise
+                    #noise_a = tf.random_normal(shape=[batch_size*2, self.network_architecture['n_ehid']], mean=0.0, stddev=0.1, dtype=tf.float32, seed=self._seed)
+                    #noise_q = tf.random_normal(shape=[batch_size*2, self.network_architecture['n_ehid']], mean=0.0, stddev=0.1, dtype=tf.float32, seed=self._seed)
+                    #a_inputs = a_inputs + noise_a
+                    #q_inputs = q_inputs + noise_q
+            """
+
+
             a_inputs = tf.nn.dropout(tf.nn.embedding_lookup(embedding, a_input, name='embedded_data'),
                                      keep_prob=keep_prob, seed=self._seed + 1)
             q_inputs = tf.nn.dropout(tf.nn.embedding_lookup(embedding, q_input, name='embedded_data'),
-                                     keep_prob=keep_prob, seed=self._seed + 2)
+                                     keep_prob=keep_prob, seed=self._seed + 2)            
 
             q_inputs_fw = tf.transpose(q_inputs, [1, 0, 2])
             q_inputs_bw = tf.transpose(tf.reverse_sequence(q_inputs, seq_lengths=q_seqlens, seq_axis=1, batch_axis=0),
@@ -297,7 +310,9 @@ class AttentionTopicModel(BaseModel):
                 valid_q_ids, \
                 valid_responses, \
                 valid_response_lengths, _, _ = valid_iterator.get_next(name='valid_data')
-         
+        
+                """
+ 
                 # Data augmentation (positive example generation)
                 aug_q_ids = self._sample_augment(q_ids=q_ids)
                 aug_valid_q_ids = self._sample_augment(q_ids=valid_q_ids)
@@ -590,7 +605,7 @@ class AttentionTopicModel(BaseModel):
                                                               p_id_weights=bert_weights)
 
 
-
+                """
                 targets, q_ids = self._sample_refined(targets=targets,
                                                       q_ids=q_ids,
                                                       batch_size=batch_size,
@@ -607,10 +622,10 @@ class AttentionTopicModel(BaseModel):
 
 
                 # Duplicate list of tensors for negative example generation and data augmentation               
-                response_lengths = tf.tile(response_lengths, [n_samples + 39])
-                responses = tf.tile(responses, [39 + n_samples, 1])
-                valid_response_lengths = tf.tile(valid_response_lengths, [n_samples + 39])
-                valid_responses = tf.tile(valid_responses, [39 + n_samples, 1])
+                response_lengths = tf.tile(response_lengths, [n_samples + 1])
+                responses = tf.tile(responses, [1 + n_samples, 1])
+                valid_response_lengths = tf.tile(valid_response_lengths, [n_samples + 1])
+                valid_responses = tf.tile(valid_responses, [1 + n_samples, 1])
 
                 """
 
@@ -643,6 +658,7 @@ class AttentionTopicModel(BaseModel):
 
             topics = tf.convert_to_tensor(topics, dtype=tf.int32)
             topic_lens = tf.convert_to_tensor(topic_lens, dtype=tf.int32)
+            """
             aug_topics = tf.convert_to_tensor(aug_topics, dtype=tf.int32)
             aug_topic_lens = tf.convert_to_tensor(aug_topic_lens, dtype=tf.int32)
             aug_topics2 = tf.convert_to_tensor(aug_topics2, dtype=tf.int32)
@@ -681,13 +697,13 @@ class AttentionTopicModel(BaseModel):
             aug_topic_lens18 = tf.convert_to_tensor(aug_topic_lens18, dtype=tf.int32)
             aug_topics19 = tf.convert_to_tensor(aug_topics19, dtype=tf.int32)
             aug_topic_lens19 = tf.convert_to_tensor(aug_topic_lens19, dtype=tf.int32)
-
+            """
             prompts = tf.nn.embedding_lookup(topics, q_ids, name='train_prompt_loopkup')
             prompt_lens = tf.gather(topic_lens, q_ids)
 
             valid_prompts = tf.nn.embedding_lookup(topics, valid_q_ids, name='valid_prompt_loopkup')
             valid_prompt_lens = tf.gather(topic_lens, valid_q_ids)
-
+            """
             aug_prompts = tf.nn.embedding_lookup(aug_topics, aug_q_ids, name='train_prompt_loopkup')
             aug_prompt_lens = tf.gather(aug_topic_lens, aug_q_ids)
 
@@ -1124,7 +1140,7 @@ class AttentionTopicModel(BaseModel):
         
             # Batch size for positive examples has doubled
             batch_size *= 20
-
+            """
             # Construct Training & Validation models
             with tf.variable_scope(self._model_scope, reuse=True) as scope:
                 trn_predictions, \
@@ -1136,6 +1152,7 @@ class AttentionTopicModel(BaseModel):
                                                          q_seqlens=prompt_lens,
                                                          maxlen=tf.reduce_max(response_lengths),
                                                          batch_size=batch_size,
+                                                         is_training=True,
                                                          keep_prob=self.dropout)
 
                 valid_predictions, \
