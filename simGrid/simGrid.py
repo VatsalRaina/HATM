@@ -12,11 +12,11 @@ from sklearn.metrics import roc_auc_score as roc
 import scipy
 from scipy.special import loggamma
 
+import context
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
 from tensorflow.contrib.slim.nets import resnet_v2
 
-import context
 from core.basemodel import BaseModel
 import core.utilities.utilities as util
 
@@ -36,8 +36,8 @@ class SimGrid(BaseModel):
                 self.qlens = tf.placeholder(tf.int32, [None])
                 self.alens = tf.placeholder(tf.int32, [None])
                 self.y = tf.placeholder(tf.float32, [None, 1])
-                self.maxlen = tf.placeholder(dtype=tf.int32, shape=[])
-
+                self.max_q_len = tf.placeholder(dtype=tf.int32, shape=[])
+                self.max_a_len = tf.placeholder(dtype=tf.int32, shape=[])
                 self.dropout = tf.placeholder(tf.float32, [])
                 self.batch_size = tf.placeholder(tf.int32, [])
             
@@ -45,13 +45,12 @@ class SimGrid(BaseModel):
                 self._model_scope = scope
                 self._predictions, \
                 self._probabilities, \
-                self._logits, \
-                self.attention, = self._construct_network(a_input=self.x_a,
+                self._logits = self._construct_network(a_input=self.x_a,
                                                           a_seqlens=self.alens,
                                                           q_input=self.x_q,
                                                           q_seqlens=self.qlens,
-                                                          n_samples=0,
-                                                          maxlen=self.maxlen,
+                                                          max_q_len=self.max_q_len,
+                                                          max_a_len=self.max_a_len,
                                                           batch_size=self.batch_size,
                                                           keep_prob=self.dropout)
 
@@ -65,6 +64,16 @@ class SimGrid(BaseModel):
                 # If necessary, restore model from previous
         elif load_path != None:
             self.load(load_path=load_path, step=epoch)
+
+    def cosine(self, xx, yy, ax):
+        """
+        Need to move to utilities python file
+        """
+        x_norm = tf.nn.l2_normalize(xx, dim=ax)
+        y_norm = tf.nn.l2_normalize(yy, dim=ax)
+        cos = tf.reduce_sum(x_norm * y_norm, axis=ax)
+        cosx = tf.clip_by_value(cos, -1.0, 1.0)
+        return cosx
 
 
     def _construct_network(self, a_input, a_seqlens, q_input, q_seqlens, max_q_len, max_a_len, batch_size, is_training=False, keep_prob=1.0):
@@ -85,6 +94,9 @@ class SimGrid(BaseModel):
         L2 = self.network_architecture['L2']
         initializer = self.network_architecture['initializer']
 
+        if is_training:
+            batch_size *= 2
+
         # Question Encoder RNN
         with tf.variable_scope('Embeddings', initializer=initializer(self._seed)) as scope:
             embedding = slim.model_variable('word_embedding',
@@ -100,24 +112,38 @@ class SimGrid(BaseModel):
             q_inputs = tf.nn.dropout(tf.nn.embedding_lookup(embedding, q_input, name='embedded_data'),
                                      keep_prob=keep_prob, seed=self._seed + 2)
 
-        " Construct similarity grid of distances "
+        # Construct similarity grid of distances
         
         a_inputs = tf.tile(a_inputs, [1, max_q_len ,1])
-        a_inputs = tf.transpose(tf.reshape(a_inputs, [batch_size*2,  max_q_len,  max_a_len, self.network_architecture['n_ehid']]), perm=[0,2,1,3])
+        a_inputs = tf.transpose(tf.reshape(a_inputs, [batch_size,  max_q_len,  max_a_len, self.network_architecture['n_ehid']]), perm=[0,2,1,3])
         q_inputs = tf.tile(q_inputs, [1, max_a_len, 1])
-        q_inputs = tf.reshape(q_inputs, [batch_size*2, max_a_len, max_q_len, self.network_architecture['n_ehid']])
+        q_inputs = tf.reshape(q_inputs, [batch_size, max_a_len, max_q_len, self.network_architecture['n_ehid']])
 
-        grid = tf.metrics.mean_cosine_distance(a_inputs, q_inputs, dim=2)  # Need to apply some mask using a_seqlens and q_seqlens      
-        " Convert to 4D tensor [batch, height, width, channels] - for now, there is only one channel"
-        grid = tf.expand_dims(grid, 3)
+        grid = self.cosine(a_inputs, q_inputs, ax=3)
+        # Convert to 4D tensor [batch, height, width, channels] - for now, there is only one channel
+        grid = tf.expand_dims(grid, axis=3, name='expanded_grid')
 
-        " Re-size similarity grid to 180 x 180 "
-        img = tf.image.resize(grid, [180, 180])
+        # Use tf.image.crop_and_resize() ---> beautiful function
+        # Normalise lengths
+        a_seqlens = tf.to_float(a_seqlens) / tf.to_float(max_a_len)
+        q_seqlens = tf.to_float(q_seqlens) / tf.to_float(max_q_len)
+        a_seqlens = tf.expand_dims(a_seqlens, axis=0, name='exp_aseq')
+        q_seqlens = tf.expand_dims(q_seqlens, axis=0, name='exp_qseq')
+        boxes = tf.concat([a_seqlens, q_seqlens], axis=0)
+        zeros = tf.zeros([2, batch_size])
+        boxes = tf.concat([zeros, boxes], axis=0)
+        boxes = tf.transpose(boxes)
+        box_ind = tf.range(batch_size)
+        img = tf.image.crop_and_resize(grid, boxes, box_ind, [180, 180])
 
-        " Pass image through Inception network "
-        with tf.variable_scope('Inception', initializer=initializer(self._seed)) as scope:
-              logits, _ = resnet_v2.resnet_v2_152(img, self.network_architecture['n_out'])
+        # Re-size similarity grid to 180 x 180
+        #img = tf.image.resize_images(grid, [180, 180])
 
+        # Pass image through Inception network
+        with slim.arg_scope(resnet_v2.resnet_arg_scope()) as scope:
+              logits, _ = resnet_v2.resnet_v2_152(img, self.network_architecture['n_out'], is_training=is_training)
+
+        logits = tf.squeeze(logits, [2,3])
         probabilities = self.network_architecture['output_fn'](logits)
         predictions = tf.cast(tf.round(probabilities), dtype=tf.float32)
 
@@ -130,6 +156,24 @@ class SimGrid(BaseModel):
             load_path,
             topics,
             topic_lens,
+            aug_topics,
+            aug_topic_lens,
+            aug_topics2,
+            aug_topic_lens2,
+            aug_topics3,
+            aug_topic_lens3,
+            aug_topics4,
+            aug_topic_lens4,
+            aug_topics5,
+            aug_topic_lens5,
+            aug_topics6,
+            aug_topic_lens6,
+            aug_topics7,
+            aug_topic_lens7,
+            aug_topics8,
+            aug_topic_lens8,
+            aug_topics9,
+            aug_topic_lens9,
             sorted_resps,
             sorted_resp_lens,
             prompt_resp_ids,
@@ -190,6 +234,145 @@ class SimGrid(BaseModel):
                 valid_response_lengths, _, _ = valid_iterator.get_next(name='valid_data')
         
 
+                aug_q_ids = self._sample_augment(q_ids=q_ids)
+                aug_valid_q_ids = self._sample_augment(q_ids=valid_q_ids)
+                aug2_q_ids = self._sample_augment(q_ids=q_ids)
+                aug2_valid_q_ids = self._sample_augment(q_ids=valid_q_ids)
+                aug3_q_ids = self._sample_augment(q_ids=q_ids)
+                aug3_valid_q_ids = self._sample_augment(q_ids=valid_q_ids)
+                aug4_q_ids = self._sample_augment(q_ids=q_ids)
+                aug4_valid_q_ids = self._sample_augment(q_ids=valid_q_ids)
+                aug5_q_ids = self._sample_augment(q_ids=q_ids)
+                aug5_valid_q_ids = self._sample_augment(q_ids=valid_q_ids)
+                aug6_q_ids = self._sample_augment(q_ids=q_ids)
+                aug6_valid_q_ids = self._sample_augment(q_ids=valid_q_ids)
+                aug7_q_ids = self._sample_augment(q_ids=q_ids)
+                aug7_valid_q_ids = self._sample_augment(q_ids=valid_q_ids)
+                aug8_q_ids = self._sample_augment(q_ids=q_ids)
+                aug8_valid_q_ids = self._sample_augment(q_ids=valid_q_ids)
+                aug9_q_ids = self._sample_augment(q_ids=q_ids)
+                aug9_valid_q_ids = self._sample_augment(q_ids=valid_q_ids)
+
+
+                aug_targets, aug_q_ids = self._sample_refined(targets=targets,
+                                                              q_ids=aug_q_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+
+                aug_valid_targets, aug_valid_q_ids = self._sample_refined(targets=valid_targets,
+                                                              q_ids=aug_valid_q_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+
+                aug2_targets, aug2_q_ids = self._sample_refined(targets=targets,
+                                                              q_ids=aug2_q_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+
+                aug2_valid_targets, aug2_valid_q_ids = self._sample_refined(targets=valid_targets,
+                                                              q_ids=aug2_valid_q_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+                aug3_targets, aug3_q_ids = self._sample_refined(targets=targets,
+                                                              q_ids=aug3_q_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+
+                aug3_valid_targets, aug3_valid_q_ids = self._sample_refined(targets=valid_targets,
+                                                              q_ids=aug3_valid_q_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+                aug4_targets, aug4_q_ids = self._sample_refined(targets=targets,
+                                                              q_ids=aug4_q_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+
+                aug4_valid_targets, aug4_valid_q_ids = self._sample_refined(targets=valid_targets,
+                                                              q_ids=aug4_valid_q_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+                aug5_targets, aug5_q_ids = self._sample_refined(targets=targets,
+                                                              q_ids=aug5_q_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+
+                aug5_valid_targets, aug5_valid_q_ids = self._sample_refined(targets=valid_targets,
+                                                              q_ids=aug5_valid_q_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+                aug6_targets, aug6_q_ids = self._sample_refined(targets=targets,
+                                                              q_ids=aug6_q_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+
+                aug6_valid_targets, aug6_valid_q_ids = self._sample_refined(targets=valid_targets,
+                                                              q_ids=aug6_valid_q_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+                aug7_targets, aug7_q_ids = self._sample_refined(targets=targets,
+                                                              q_ids=aug7_q_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+
+                aug7_valid_targets, aug7_valid_q_ids = self._sample_refined(targets=valid_targets,
+                                                              q_ids=aug7_valid_q_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+                aug8_targets, aug8_q_ids = self._sample_refined(targets=targets,
+                                                              q_ids=aug8_q_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+
+                aug8_valid_targets, aug8_valid_q_ids = self._sample_refined(targets=valid_targets,
+                                                              q_ids=aug8_valid_q_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+                aug9_targets, aug9_q_ids = self._sample_refined(targets=targets,
+                                                              q_ids=aug9_q_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+                aug9_valid_targets, aug9_valid_q_ids = self._sample_refined(targets=valid_targets,
+                                                              q_ids=aug9_valid_q_ids,
+                                                              batch_size=batch_size,
+                                                              n_samples=n_samples,
+                                                              arr_unigrams=arr_unigrams,
+                                                              p_id_weights=bert_weights)
+
+
 
                 targets, q_ids = self._sample_refined(targets=targets,
                                                       q_ids=q_ids,
@@ -207,31 +390,266 @@ class SimGrid(BaseModel):
 
 
                 # Duplicate list of tensors for negative example generation and data augmentation               
-                response_lengths = tf.tile(response_lengths, [n_samples + 1])
-                responses = tf.tile(responses, [1 + n_samples, 1])
-                valid_response_lengths = tf.tile(valid_response_lengths, [n_samples + 1])
-                valid_responses = tf.tile(valid_responses, [1 + n_samples, 1])
+                response_lengths = tf.tile(response_lengths, [n_samples + 19])
+                responses = tf.tile(responses, [19 + n_samples, 1])
+                valid_response_lengths = tf.tile(valid_response_lengths, [n_samples + 19])
+                valid_responses = tf.tile(valid_responses, [19 + n_samples, 1])
 
 
 
             topics = tf.convert_to_tensor(topics, dtype=tf.int32)
             topic_lens = tf.convert_to_tensor(topic_lens, dtype=tf.int32)
 
+            aug_topics = tf.convert_to_tensor(aug_topics, dtype=tf.int32)
+            aug_topic_lens = tf.convert_to_tensor(aug_topic_lens, dtype=tf.int32)
+            aug_topics2 = tf.convert_to_tensor(aug_topics2, dtype=tf.int32)
+            aug_topic_lens2 = tf.convert_to_tensor(aug_topic_lens2, dtype=tf.int32)
+            aug_topics3 = tf.convert_to_tensor(aug_topics3, dtype=tf.int32)
+            aug_topic_lens3 = tf.convert_to_tensor(aug_topic_lens3, dtype=tf.int32)
+            aug_topics4 = tf.convert_to_tensor(aug_topics4, dtype=tf.int32)
+            aug_topic_lens4 = tf.convert_to_tensor(aug_topic_lens4, dtype=tf.int32)
+            aug_topics5 = tf.convert_to_tensor(aug_topics5, dtype=tf.int32)
+            aug_topic_lens5 = tf.convert_to_tensor(aug_topic_lens5, dtype=tf.int32)
+            aug_topics6 = tf.convert_to_tensor(aug_topics6, dtype=tf.int32)
+            aug_topic_lens6 = tf.convert_to_tensor(aug_topic_lens6, dtype=tf.int32)
+            aug_topics7 = tf.convert_to_tensor(aug_topics7, dtype=tf.int32)
+            aug_topic_lens7 = tf.convert_to_tensor(aug_topic_lens7, dtype=tf.int32)
+            aug_topics8 = tf.convert_to_tensor(aug_topics8, dtype=tf.int32)
+            aug_topic_lens8 = tf.convert_to_tensor(aug_topic_lens8, dtype=tf.int32)
+            aug_topics9 = tf.convert_to_tensor(aug_topics9, dtype=tf.int32)
+            aug_topic_lens9 = tf.convert_to_tensor(aug_topic_lens9, dtype=tf.int32)
+
+
+
             prompts = tf.nn.embedding_lookup(topics, q_ids, name='train_prompt_loopkup')
             prompt_lens = tf.gather(topic_lens, q_ids)
 
             valid_prompts = tf.nn.embedding_lookup(topics, valid_q_ids, name='valid_prompt_loopkup')
             valid_prompt_lens = tf.gather(topic_lens, valid_q_ids)
-            # Construct Training & Validation models
+
+            aug_prompts = tf.nn.embedding_lookup(aug_topics, aug_q_ids, name='train_prompt_loopkup')
+            aug_prompt_lens = tf.gather(aug_topic_lens, aug_q_ids)
+
+            aug_valid_prompts = tf.nn.embedding_lookup(aug_topics, aug_valid_q_ids, name='valid_prompt_loopkup')
+            aug_valid_prompt_lens = tf.gather(aug_topic_lens, aug_valid_q_ids)
+
+            aug2_prompts = tf.nn.embedding_lookup(aug_topics2, aug2_q_ids, name='train_prompt_loopkup')
+            aug2_prompt_lens = tf.gather(aug_topic_lens2, aug2_q_ids)
+
+            aug2_valid_prompts = tf.nn.embedding_lookup(aug_topics2, aug2_valid_q_ids, name='valid_prompt_loopkup')
+            aug2_valid_prompt_lens = tf.gather(aug_topic_lens2, aug2_valid_q_ids)
+
+            aug3_prompts = tf.nn.embedding_lookup(aug_topics3, aug3_q_ids, name='train_prompt_loopkup')
+            aug3_prompt_lens = tf.gather(aug_topic_lens3, aug3_q_ids)
+
+            aug3_valid_prompts = tf.nn.embedding_lookup(aug_topics3, aug3_valid_q_ids, name='valid_prompt_loopkup')
+            aug3_valid_prompt_lens = tf.gather(aug_topic_lens3, aug3_valid_q_ids)
+
+            aug4_prompts = tf.nn.embedding_lookup(aug_topics4, aug4_q_ids, name='train_prompt_loopkup')
+            aug4_prompt_lens = tf.gather(aug_topic_lens4, aug4_q_ids)
+
+            aug4_valid_prompts = tf.nn.embedding_lookup(aug_topics4, aug4_valid_q_ids, name='valid_prompt_loopkup')
+            aug4_valid_prompt_lens = tf.gather(aug_topic_lens4, aug4_valid_q_ids)
+
+            aug5_prompts = tf.nn.embedding_lookup(aug_topics5, aug5_q_ids, name='train_prompt_loopkup')
+            aug5_prompt_lens = tf.gather(aug_topic_lens5, aug5_q_ids)
+
+            aug5_valid_prompts = tf.nn.embedding_lookup(aug_topics5, aug5_valid_q_ids, name='valid_prompt_loopkup')
+            aug5_valid_prompt_lens = tf.gather(aug_topic_lens5, aug5_valid_q_ids)
+
+            aug6_prompts = tf.nn.embedding_lookup(aug_topics6, aug6_q_ids, name='train_prompt_loopkup')
+            aug6_prompt_lens = tf.gather(aug_topic_lens6, aug6_q_ids)
+
+            aug6_valid_prompts = tf.nn.embedding_lookup(aug_topics6, aug6_valid_q_ids, name='valid_prompt_loopkup')
+            aug6_valid_prompt_lens = tf.gather(aug_topic_lens6, aug6_valid_q_ids)
+
+            aug7_prompts = tf.nn.embedding_lookup(aug_topics7, aug7_q_ids, name='train_prompt_loopkup')
+            aug7_prompt_lens = tf.gather(aug_topic_lens7, aug7_q_ids)
+
+            aug7_valid_prompts = tf.nn.embedding_lookup(aug_topics7, aug7_valid_q_ids, name='valid_prompt_loopkup')
+            aug7_valid_prompt_lens = tf.gather(aug_topic_lens7, aug7_valid_q_ids)
+
+            aug8_prompts = tf.nn.embedding_lookup(aug_topics8, aug8_q_ids, name='train_prompt_loopkup')
+            aug8_prompt_lens = tf.gather(aug_topic_lens8, aug8_q_ids)
+
+            aug8_valid_prompts = tf.nn.embedding_lookup(aug_topics8, aug8_valid_q_ids, name='valid_prompt_loopkup')
+            aug8_valid_prompt_lens = tf.gather(aug_topic_lens8, aug8_valid_q_ids)
+
+            aug9_prompts = tf.nn.embedding_lookup(aug_topics9, aug9_q_ids, name='train_prompt_loopkup')
+            aug9_prompt_lens = tf.gather(aug_topic_lens9, aug9_q_ids)
+
+            aug9_valid_prompts = tf.nn.embedding_lookup(aug_topics9, aug9_valid_q_ids, name='valid_prompt_loopkup')
+            aug9_valid_prompt_lens = tf.gather(aug_topic_lens9, aug9_valid_q_ids)
+
+
+            # Make all prompts tensors of same dimensions
+            num_zeros = tf.subtract(tf.shape(prompts)[1], tf.shape(aug_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            prompts = tf.cond(tf.less(0,num_zeros), lambda: prompts, lambda: tf.concat([prompts, zeros], axis=1))
+            aug_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug_prompts, zeros], axis=1), lambda: aug_prompts)
+            prompts = tf.concat([prompts, aug_prompts], axis=0)
+            prompt_lens = tf.concat([prompt_lens, aug_prompt_lens], axis=0)
+
+            num_zeros = tf.subtract(tf.shape(valid_prompts)[1], tf.shape(aug_valid_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: valid_prompts, lambda: tf.concat([valid_prompts, zeros], axis=1))
+            aug_valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug_valid_prompts, zeros], axis=1), lambda: aug_valid_prompts)
+            valid_prompts = tf.concat([valid_prompts, aug_valid_prompts], axis=0)
+            valid_prompt_lens = tf.concat([valid_prompt_lens, aug_valid_prompt_lens], axis=0)
+
+
+            num_zeros = tf.subtract(tf.shape(prompts)[1], tf.shape(aug2_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            zeros2 = tf.zeros([tf.shape(prompts)[0], tf.abs(num_zeros)], dtype=tf.int32)
+            prompts = tf.cond(tf.less(0,num_zeros), lambda: prompts, lambda: tf.concat([prompts, zeros2], axis=1))
+            aug2_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug2_prompts, zeros], axis=1), lambda: aug2_prompts)
+            prompts = tf.concat([prompts, aug2_prompts], axis=0)
+            prompt_lens = tf.concat([prompt_lens, aug2_prompt_lens], axis=0)
+
+            num_zeros = tf.subtract(tf.shape(valid_prompts)[1], tf.shape(aug2_valid_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            zeros2 = tf.zeros([tf.shape(valid_prompts)[0], tf.abs(num_zeros)], dtype=tf.int32)
+            valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: valid_prompts, lambda: tf.concat([valid_prompts, zeros2], axis=1))
+            aug2_valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug2_valid_prompts, zeros], axis=1), lambda: aug2_valid_prompts)
+            valid_prompts = tf.concat([valid_prompts, aug2_valid_prompts], axis=0)
+            valid_prompt_lens = tf.concat([valid_prompt_lens, aug2_valid_prompt_lens], axis=0)
+
+            num_zeros = tf.subtract(tf.shape(prompts)[1], tf.shape(aug3_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            zeros2 = tf.zeros([tf.shape(prompts)[0], tf.abs(num_zeros)], dtype=tf.int32)
+            prompts = tf.cond(tf.less(0,num_zeros), lambda: prompts, lambda: tf.concat([prompts, zeros2], axis=1))
+            aug3_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug3_prompts, zeros], axis=1), lambda: aug3_prompts)
+            prompts = tf.concat([prompts, aug3_prompts], axis=0)
+            prompt_lens = tf.concat([prompt_lens, aug3_prompt_lens], axis=0)
+
+            num_zeros = tf.subtract(tf.shape(valid_prompts)[1], tf.shape(aug3_valid_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            zeros2 = tf.zeros([tf.shape(valid_prompts)[0], tf.abs(num_zeros)], dtype=tf.int32)
+            valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: valid_prompts, lambda: tf.concat([valid_prompts, zeros2], axis=1))
+            aug3_valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug3_valid_prompts, zeros], axis=1), lambda: aug3_valid_prompts)
+            valid_prompts = tf.concat([valid_prompts, aug3_valid_prompts], axis=0)
+            valid_prompt_lens = tf.concat([valid_prompt_lens, aug3_valid_prompt_lens], axis=0)
+
+
+            num_zeros = tf.subtract(tf.shape(prompts)[1], tf.shape(aug4_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            zeros2 = tf.zeros([tf.shape(prompts)[0], tf.abs(num_zeros)], dtype=tf.int32)
+            prompts = tf.cond(tf.less(0,num_zeros), lambda: prompts, lambda: tf.concat([prompts, zeros2], axis=1))
+            aug4_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug4_prompts, zeros], axis=1), lambda: aug4_prompts)
+            prompts = tf.concat([prompts, aug4_prompts], axis=0)
+            prompt_lens = tf.concat([prompt_lens, aug4_prompt_lens], axis=0)
+
+            num_zeros = tf.subtract(tf.shape(valid_prompts)[1], tf.shape(aug4_valid_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            zeros2 = tf.zeros([tf.shape(valid_prompts)[0], tf.abs(num_zeros)], dtype=tf.int32)
+            valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: valid_prompts, lambda: tf.concat([valid_prompts, zeros2], axis=1))
+            aug4_valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug4_valid_prompts, zeros], axis=1), lambda: aug4_valid_prompts)
+            valid_prompts = tf.concat([valid_prompts, aug4_valid_prompts], axis=0)
+            valid_prompt_lens = tf.concat([valid_prompt_lens, aug4_valid_prompt_lens], axis=0)
+
+            num_zeros = tf.subtract(tf.shape(prompts)[1], tf.shape(aug5_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            zeros2 = tf.zeros([tf.shape(prompts)[0], tf.abs(num_zeros)], dtype=tf.int32)
+            prompts = tf.cond(tf.less(0,num_zeros), lambda: prompts, lambda: tf.concat([prompts, zeros2], axis=1))
+            aug5_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug5_prompts, zeros], axis=1), lambda: aug5_prompts)
+            prompts = tf.concat([prompts, aug5_prompts], axis=0)
+            prompt_lens = tf.concat([prompt_lens, aug5_prompt_lens], axis=0)
+
+            num_zeros = tf.subtract(tf.shape(valid_prompts)[1], tf.shape(aug5_valid_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            zeros2 = tf.zeros([tf.shape(valid_prompts)[0], tf.abs(num_zeros)], dtype=tf.int32)
+            valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: valid_prompts, lambda: tf.concat([valid_prompts, zeros2], axis=1))
+            aug5_valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug5_valid_prompts, zeros], axis=1), lambda: aug5_valid_prompts)
+            valid_prompts = tf.concat([valid_prompts, aug5_valid_prompts], axis=0)
+            valid_prompt_lens = tf.concat([valid_prompt_lens, aug5_valid_prompt_lens], axis=0)
+
+
+            num_zeros = tf.subtract(tf.shape(prompts)[1], tf.shape(aug6_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            zeros2 = tf.zeros([tf.shape(prompts)[0], tf.abs(num_zeros)], dtype=tf.int32)
+            prompts = tf.cond(tf.less(0,num_zeros), lambda: prompts, lambda: tf.concat([prompts, zeros2], axis=1))
+            aug6_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug6_prompts, zeros], axis=1), lambda: aug6_prompts)
+            prompts = tf.concat([prompts, aug6_prompts], axis=0)
+            prompt_lens = tf.concat([prompt_lens, aug6_prompt_lens], axis=0)
+
+            num_zeros = tf.subtract(tf.shape(valid_prompts)[1], tf.shape(aug6_valid_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            zeros2 = tf.zeros([tf.shape(valid_prompts)[0], tf.abs(num_zeros)], dtype=tf.int32)
+            valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: valid_prompts, lambda: tf.concat([valid_prompts, zeros2], axis=1))
+            aug6_valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug6_valid_prompts, zeros], axis=1), lambda: aug6_valid_prompts)
+            valid_prompts = tf.concat([valid_prompts, aug6_valid_prompts], axis=0)
+            valid_prompt_lens = tf.concat([valid_prompt_lens, aug6_valid_prompt_lens], axis=0)
+
+            num_zeros = tf.subtract(tf.shape(prompts)[1], tf.shape(aug7_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            zeros2 = tf.zeros([tf.shape(prompts)[0], tf.abs(num_zeros)], dtype=tf.int32)
+            prompts = tf.cond(tf.less(0,num_zeros), lambda: prompts, lambda: tf.concat([prompts, zeros2], axis=1))
+            aug7_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug7_prompts, zeros], axis=1), lambda: aug7_prompts)
+            prompts = tf.concat([prompts, aug7_prompts], axis=0)
+            prompt_lens = tf.concat([prompt_lens, aug7_prompt_lens], axis=0)
+
+            num_zeros = tf.subtract(tf.shape(valid_prompts)[1], tf.shape(aug7_valid_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            zeros2 = tf.zeros([tf.shape(valid_prompts)[0], tf.abs(num_zeros)], dtype=tf.int32)
+            valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: valid_prompts, lambda: tf.concat([valid_prompts, zeros2], axis=1))
+            aug7_valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug7_valid_prompts, zeros], axis=1), lambda: aug7_valid_prompts)
+            valid_prompts = tf.concat([valid_prompts, aug7_valid_prompts], axis=0)
+            valid_prompt_lens = tf.concat([valid_prompt_lens, aug7_valid_prompt_lens], axis=0)
+
+
+            num_zeros = tf.subtract(tf.shape(prompts)[1], tf.shape(aug8_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            zeros2 = tf.zeros([tf.shape(prompts)[0], tf.abs(num_zeros)], dtype=tf.int32)
+            prompts = tf.cond(tf.less(0,num_zeros), lambda: prompts, lambda: tf.concat([prompts, zeros2], axis=1))
+            aug8_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug8_prompts, zeros], axis=1), lambda: aug8_prompts)
+            prompts = tf.concat([prompts, aug8_prompts], axis=0)
+            prompt_lens = tf.concat([prompt_lens, aug8_prompt_lens], axis=0)
+
+            num_zeros = tf.subtract(tf.shape(valid_prompts)[1], tf.shape(aug8_valid_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            zeros2 = tf.zeros([tf.shape(valid_prompts)[0], tf.abs(num_zeros)], dtype=tf.int32)
+            valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: valid_prompts, lambda: tf.concat([valid_prompts, zeros2], axis=1))
+            aug8_valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug8_valid_prompts, zeros], axis=1), lambda: aug8_valid_prompts)
+            valid_prompts = tf.concat([valid_prompts, aug8_valid_prompts], axis=0)
+            valid_prompt_lens = tf.concat([valid_prompt_lens, aug8_valid_prompt_lens], axis=0)
+
+            num_zeros = tf.subtract(tf.shape(prompts)[1], tf.shape(aug9_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            zeros2 = tf.zeros([tf.shape(prompts)[0], tf.abs(num_zeros)], dtype=tf.int32)
+            prompts = tf.cond(tf.less(0,num_zeros), lambda: prompts, lambda: tf.concat([prompts, zeros2], axis=1))
+            aug9_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug9_prompts, zeros], axis=1), lambda: aug9_prompts)
+            prompts = tf.concat([prompts, aug9_prompts], axis=0)
+            prompt_lens = tf.concat([prompt_lens, aug9_prompt_lens], axis=0)
+
+            num_zeros = tf.subtract(tf.shape(valid_prompts)[1], tf.shape(aug9_valid_prompts)[1])
+            zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
+            zeros2 = tf.zeros([tf.shape(valid_prompts)[0], tf.abs(num_zeros)], dtype=tf.int32)
+            valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: valid_prompts, lambda: tf.concat([valid_prompts, zeros2], axis=1))
+            aug9_valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug9_valid_prompts, zeros], axis=1), lambda: aug9_valid_prompts)
+            valid_prompts = tf.concat([valid_prompts, aug9_valid_prompts], axis=0)
+            valid_prompt_lens = tf.concat([valid_prompt_lens, aug9_valid_prompt_lens], axis=0)
+
+
+            targets = tf.concat([targets, aug_targets, aug2_targets, aug3_targets, aug4_targets, aug5_targets, aug6_targets, aug7_targets, aug8_targets, aug9_targets], axis=0)
+            valid_targets = tf.concat([valid_targets, aug_valid_targets, aug2_valid_targets, aug3_valid_targets, aug4_valid_targets, aug5_valid_targets, aug6_valid_targets, aug7_valid_targets, aug8_valid_targets, aug9_valid_targets], axis=0)
+
+
+            # Batch size for positive examples has doubled
+            batch_size *= 10
+
+
+
+
+# Construct Tgaining & Validation models
             with tf.variable_scope(self._model_scope, reuse=True) as scope:
                 trn_predictions, \
                 trn_probabilities, \
                 trn_logits = self._construct_network(a_input=responses,
                                                          a_seqlens=response_lengths,
-                                                         n_samples=n_samples,
                                                          q_input=prompts,
                                                          q_seqlens=prompt_lens,
-                                                         maxlen=tf.reduce_max(response_lengths),
+                                                         max_q_len=tf.shape(prompts)[1],
+                                                         max_a_len=tf.reduce_max(response_lengths),
                                                          batch_size=batch_size,
                                                          is_training=True,
                                                          keep_prob=self.dropout)
@@ -240,11 +658,11 @@ class SimGrid(BaseModel):
                 valid_probabilities, \
                 valid_logits = self._construct_network(a_input=valid_responses,
                                                           a_seqlens=valid_response_lengths,
-                                                          n_samples=n_samples,
                                                           q_input=valid_prompts,
                                                           q_seqlens=valid_prompt_lens,
-                                                          maxlen=tf.reduce_max(valid_response_lengths),
-                                                          batch_size=batch_size,
+                                                          max_q_len=tf.shape(valid_prompts)[1],
+                                                          max_a_len=tf.reduce_max(valid_response_lengths),
+                                                          batch_size=batch_size*2,
                                                           keep_prob=1.0)
 
 
@@ -272,6 +690,7 @@ class SimGrid(BaseModel):
             # Intialize only newly created variables, as opposed to reused - allows for finetuning and transfer learning :)
             init = tf.variables_initializer(set(tf.global_variables()) - temp)
             self.sess.run(init)
+            #self.sess.run(valid_iterator.initializer)
 
             if load_path != None:
                 self._load_variables(load_scope='model/Embeddings/word_embedding',
@@ -292,11 +711,13 @@ class SimGrid(BaseModel):
                 # Run Training Loop
                 loss = 0.0
                 batch_time = time.time()
+                print('Total mini-batches')
+                print(n_batches)
                 for batch in xrange(n_batches):
                     _, loss_value, bubba = self.sess.run([train_op, trn_cost, responses], feed_dict={self.dropout: dropout})
                     assert not np.isnan(loss_value), 'Model diverged with loss = NaN'
                     loss += loss_value
-                    print(bubba[-1])
+                    print(loss_value)
 
                 duration = time.time() - batch_time
                 loss /= n_batches
@@ -315,12 +736,11 @@ class SimGrid(BaseModel):
                         batch_eval_loss, \
                         batch_valid_preds, \
                         batch_valid_probs, \
-                        batch_attention, \
                         batch_valid_targets = self.sess.run([evl_cost,
                                                              valid_predictions,
                                                              valid_probabilities,
-                                                             valid_attention,
                                                              valid_targets])
+                    #print('Got here')
                         size = batch_valid_probs.shape[0]
                         eval_loss += float(size) * batch_eval_loss
                         if valid_probs is None:
@@ -393,13 +813,12 @@ class SimGrid(BaseModel):
             with tf.variable_scope(self._model_scope, reuse=True) as scope:
                 test_predictions, \
                 test_probabilities, \
-                test_logits, \
-                test_attention = self._construct_network(a_input=test_responses,
+                test_logits = self._construct_network(a_input=test_responses,
                                                          a_seqlens=test_response_lengths,
-                                                         n_samples=0,
                                                          q_input=test_prompts,
                                                          q_seqlens=test_prompt_lens,
-                                                         maxlen=tf.reduce_max(test_response_lengths),
+                                                         max_q_len=tf.shape(test_prompts)[1],
+                                                         max_a_len=tf.reduce_max(test_response_lengths),
                                                          batch_size=batch_size,
                                                          keep_prob=1.0)
 

@@ -14,6 +14,7 @@ from scipy.special import loggamma
 
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
+from tensorflow.contrib.slim.nets import resnet_v2
 
 import context
 from core.basemodel import BaseModel
@@ -94,7 +95,7 @@ class AttentionTopicModel(BaseModel):
                                             device='/GPU:0')
            
             """
-            # Adversarial training through injecting noise
+            # Injecting noise
             if is_training:
                     noise = tf.random_normal(shape=[self.network_architecture['n_in'], self.network_architecture['n_ehid']], mean=0.0, stddev=0.1, dtype=tf.float32, seed=self._seed)
                     embedding = embedding + noise
@@ -129,6 +130,7 @@ class AttentionTopicModel(BaseModel):
 
         question_embeddings = tf.concat([state_fw[1], state_bw[1]], axis=1)
         question_embeddings = tf.nn.dropout(question_embeddings, keep_prob=keep_prob, seed=self._seed)
+                       
 
         # Response Encoder RNN
         with tf.variable_scope('RNN_A_FW', initializer=initializer(self._seed)) as scope:
@@ -145,11 +147,44 @@ class AttentionTopicModel(BaseModel):
 
         #a_seqlens = tf.tile(a_seqlens, [n_samples + 1])
         #outputs = tf.tile(outputs, [1 + n_samples, 1, 1])
+        """
+        # Injecting noise and augmenting
+        if is_training:
+            orig = question_embeddings
+            aug_factor = 9
+            for i in range(aug_factor):
+                nois = tf.random_normal(shape=[batch_size*2, 2*self.network_architecture['n_phid']], mean=0.0, stddev=0.1, dtype=tf.float32, seed=self._seed+i)
+                aug_embd = tf.add(orig, nois)
+                question_embeddings = tf.concat([question_embeddings, aug_embd], axis=0)
+            batch_size*=(1+aug_factor)
+            a_seqlens = tf.tile(a_seqlens, [1+aug_factor])
+            outputs = tf.tile(outputs, [1+aug_factor,1,1])
+        """ 
 
+        # Multi-head attention
         hidden, attention = self._bahdanau_attention(memory=outputs, seq_lens=a_seqlens, maxlen=maxlen,
                                                      query=question_embeddings,
                                                      size=2 * self.network_architecture['n_rhid'],
-                                                     batch_size=batch_size * (n_samples + 1))
+                                                     batch_size=batch_size * (n_samples + 1),
+                                                     idx=0)
+        k_multihead = 5
+        for i in range(k_multihead-1):
+            curr_hidden, curr_attention = self._bahdanau_attention(memory=outputs, seq_lens=a_seqlens, maxlen=maxlen,
+                                                         query=question_embeddings,
+                                                         size=2 * self.network_architecture['n_rhid'],
+                                                         batch_size=batch_size * (n_samples + 1),
+                                                         idx=1+i)
+            hidden = tf.concat([hidden, curr_hidden], axis=1)
+            #attention = tf.concat([attention, curr_attention], axis=1)
+        
+        with tf.variable_scope('Resize') as scope:
+            resize = slim.model_variable('resize',
+                                        shape=[2*self.network_architecture['n_rhid'],
+                                        k_multihead*2*self.network_architecture['n_rhid']],
+                                        initializer=tf.truncated_normal_initializer(stddev=0.1),
+                                        regularizer=slim.l2_regularizer(L2),
+                                        device='/GPU:0')
+            hidden = tf.matmul(hidden, tf.transpose(resize))
 
         with tf.variable_scope('Grader') as scope:
             for layer in xrange(self.network_architecture['n_flayers']):
@@ -1166,6 +1201,13 @@ class AttentionTopicModel(BaseModel):
                                                           maxlen=tf.reduce_max(valid_response_lengths),
                                                           batch_size=batch_size,
                                                           keep_prob=1.0)
+
+            """
+            nois_aug = True
+            aug_fact = 10
+            if nois_aug:
+                targets = tf.tile(targets, [aug_fact, 1])
+            """
 
             # Construct XEntropy training costs
             trn_cost, total_loss = self._construct_xent_cost(targets=targets,
@@ -3212,12 +3254,13 @@ class ATMPriorNetwork(AttentionTopicModel):
                 test_predictions, \
                 test_probabilities, \
                 test_logits, \
-                test_attention = self._construct_network(a_input=test_responses,
+                test_attention = self._construct_network_i(a_input=test_responses,
                                                          a_seqlens=test_response_lengths,
                                                          n_samples=0,
                                                          q_input=test_prompts,
                                                          q_seqlens=test_prompt_lens,
-                                                         maxlen=tf.reduce_max(test_response_lengths),
+                                                         max_q_len=tf.shape(test_prompts)[1],
+                                                         max_a_len=tf.reduce_max(test_response_lengths),
                                                          batch_size=batch_size,
                                                          keep_prob=1.0)
 

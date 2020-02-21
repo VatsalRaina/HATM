@@ -396,17 +396,18 @@ class BaseModel(object):
         return targets, q_ids, responses, response_lengths
            
 
-    def _bahdanau_attention(self, memory, seq_lens, maxlen, query, size, batch_size, name='Attention'):
+    def _bahdanau_attention(self, memory, seq_lens, maxlen, query, size, batch_size, idx, name='Attention'):
         WD = self.network_architecture['L2']
-        with tf.variable_scope(name) as scope:
+        with tf.variable_scope(name+str(idx)) as scope:
             with slim.arg_scope([slim.model_variable],
-                                initializer=self.network_architecture['initializer'](self._seed),
+                                initializer=self.network_architecture['initializer'](self._seed+idx),
                                 regularizer=slim.l2_regularizer(WD),
                                 device='/GPU:0'):
                 # Define Attention Parameters
                 v = slim.model_variable('v', shape=[1, size])
                 U = slim.model_variable('u', shape=[size, size])
                 W = slim.model_variable('w', shape=[size, size])
+                #with tf.variable_scope('ADV') as scope:
                 biases = slim.model_variable('biases', shape=[size], initializer=tf.constant_initializer(0.1))
 
                 tmp_a = tf.reshape(memory, [-1, size])
@@ -425,16 +426,28 @@ class BaseModel(object):
 
                 return outputs, attention
 
-    def _construct_xent_cost(self, targets, logits, pos_weight, is_training=False):
+    def _construct_xent_cost(self, targets, logits, pos_weight, is_training=False, is_adversarial=False):
         print('Constructing XENT cost')
-        cost = tf.reduce_mean(
-            tf.nn.weighted_cross_entropy_with_logits(logits=logits, targets=targets, pos_weight=pos_weight,
+
+        if is_adversarial:
+            cost = -1 * tf.reduce_mean(
+                tf.nn.weighted_cross_entropy_with_logits(logits=logits, targets=targets, pos_weight=pos_weight,
+                                                     name='total_xentropy_per_batch')) / float(pos_weight)
+        else:
+            cost = tf.reduce_mean(
+                tf.nn.weighted_cross_entropy_with_logits(logits=logits, targets=targets, pos_weight=pos_weight,
                                                      name='total_xentropy_per_batch')) / float(pos_weight)
 
         if self._debug_mode > 1:
             tf.scalar_summary('XENT', cost)
 
         if is_training:
+            tf.add_to_collection('losses', cost)
+            # The total loss is defined as the target loss plus all of the weight
+            # decay terms (L2 loss).
+            total_cost = tf.add_n(tf.get_collection('losses'), name='total_cost')
+            return cost, total_cost
+        elif is_adversarial:
             tf.add_to_collection('losses', cost)
             # The total loss is defined as the target loss plus all of the weight
             # decay terms (L2 loss).
