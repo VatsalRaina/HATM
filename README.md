@@ -2,7 +2,15 @@
 
 ## Dependencies
 
+### To install
 pip install --user tensorflow-gpu == 1.4.1
+
+### To put in .bash_profile
+export LD_LIBRARY_PATH="/home/mifs/am969/cuda-8.0/lib64:${LD_LIBRARY_PATH}"
+export PATH="/home/mifs/am969/cuda-8.0/bin:${PATH}"
+export PATH=$HOME/.local/bin:$PATH
+export PYTHONPATH=$PYTHONPATH:/home/alta/relevance/vr311/attention-topic-model/
+export PYTHONPATH="$PYTHONPATH:~/.local/lib/"
 
 ## Training
 
@@ -18,6 +26,8 @@ The trained model directory here is called 'com1' but it could be any name (depe
 Step 0 is optional as you may have already preprocessed the data-set into the desired format of a tfrecord.
 
 ### 0.a Process the transcriptions and scripts and save the processed files as readable .txt files
+
+
 
 ### 0.b Create an evaluation set by shuffling prompts and responses to generate file with a mix of positive (on-topic) and negative (off-topic) examples
 
