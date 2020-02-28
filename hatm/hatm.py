@@ -338,6 +338,7 @@ class HierarchicialAttentionTopicModel(BaseModel):
                                                      size=2 * self.network_architecture['n_rhid'],
                                                      batch_size=batch_size * (n_samples + 1),
                                                      idx=0)
+        """
         k_multihead = 5
         for i in range(k_multihead-1):
             curr_hidden, curr_attention = self._bahdanau_attention(memory=outputs, seq_lens=a_seqlens, maxlen=maxlen,
@@ -358,7 +359,7 @@ class HierarchicialAttentionTopicModel(BaseModel):
                                         regularizer=slim.l2_regularizer(L2),
                                         device='/GPU:0')
             hidden = tf.matmul(hidden, tf.transpose(resize))
-
+        """
 
         with tf.variable_scope('Grader') as scope:
             for layer in xrange(self.network_architecture['n_flayers']):
