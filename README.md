@@ -67,8 +67,33 @@ The trained model directory should have a structure similar to the following:
     │   ├── ...
     │   ├── weights.ckpt-3.data-00000-of-00001     # 3 epochs in this model
     │   ├── ...
-    │   └── weights.ckpt.meta             
+    │   └── weights.ckpt.meta
+    ├── ss.sh
+    ├── submit_test.sh
+    ├── submit_train.sh
+    ├── train_cmd.sh
+    ├── uu.sh
     └── ...
 
 ### 2. Run test script
+
+```
+./atm/hatm/run/step_test_hatm.py /path/to/directory/with/test/tfrecord/relevance.test.tfrecords eval_unseen --epoch 3
+```
+
+The above command is typically put into a bash script such as `uu.sh`. Then, the command is executed on the GPU using `./submit_test.sh uu.sh`
+
+#### Typical contents of `submit_test.sh`
+
+```
+#!/bin/bash
+#$ -S /bin/bash
+
+export CUDAPATH="/home/mifs/am969/cuda-8.0/targets/x86_64-linux/lib/:/home/mifs/am969/cuda-8.0/lib64:/home/mifs/ar527/bin/OpenBLAS"
+
+qsub -cwd -j y -o LOGs/LOG.test -l qp=cuda-low -l osrel='*' -l mem_grab=160G -l gpuclass='kepler' ${1}
+```
+
+#### Typical contents of `uu.sh`
+
 
