@@ -22,7 +22,7 @@ Alternatively train SimGrid <br />
 ## Testing
 
 The following sequence of instructions give an example of how to evaluate performance on a data-set of prompt-response pairs.
-The trained model directory here is called 'com1' but it could be any name (depending on the name given to the model during training).
+The trained model directory here is called `com1` but it could be any name (depending on the name given to the model during training).
 Step 0 is optional as you may have already preprocessed the data-set into the desired format of a tfrecord.
 
 ### 0.a Process the transcriptions and scripts and save the processed files as readable .txt files
@@ -36,7 +36,15 @@ with the same number of lines where each line in each file corresponds to one an
 
 ### 0.b Create an evaluation set by shuffling prompts and responses to generate file with a mix of positive (on-topic) and negative (off-topic) examples
 
+```
+./path/to/HATM/preprocessing/magic_preprocess_shuffle.py /directory/with/unshuffled/.txt/data /destination/directory --samples 1
+```
+
 ### 0.c Generate the required tfrecords files from the processed and shuffled .txt files
+
+```
+python magic_preprocess_to_tfrecords.py /directory/with/shuffled/txt/data /path/to/word-list/file/input.wlist.index /destination/directory --preprocessing_type test
+```
 
 ### 1. Navigate to directory containing trained model checkpoint
 
