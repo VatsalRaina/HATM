@@ -96,4 +96,27 @@ qsub -cwd -j y -o LOGs/LOG.test -l qp=cuda-low -l osrel='*' -l mem_grab=160G -l 
 
 #### Typical contents of `uu.sh`
 
+```
+#!/bin/bash
+#$ -S /bin/bash
 
+export LD_LIBRARY_PATH="/home/mifs/am969/cuda-8.0/lib64:${LD_LIBRARY_PATH}"
+
+export CUDA_VISIBLE_DEVICES=$X_SGE_CUDA_DEVICE
+
+./atm/hatm/run/step_test_hatm.py /home/alta/relevance/vr311/data/LINSKuns03evl03_ALL_naive/tfrecords/relevance.test.tfrecords eval_unseen --epoch 3
+
+```
+
+### 3. Viewing results
+
+You should still be within `/path/to/com1/`. Now the directory structure should have a new directory created named `eval_unseen` which should contain the results of interest.
+
+    .
+    ├── ...
+    ├── eval_unseen                                      
+    │   ├── labels-probs.txt
+    │   ├── labels.txt
+    │   ├── predictions.txt
+    │   └── results.txt
+    └── ...
