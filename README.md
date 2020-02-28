@@ -43,10 +43,32 @@ with the same number of lines where each line in each file corresponds to one an
 ### 0.c Generate the required tfrecords files from the processed and shuffled .txt files
 
 ```
-python magic_preprocess_to_tfrecords.py /directory/with/shuffled/txt/data /path/to/word-list/file/input.wlist.index /destination/directory --preprocessing_type test
+./path/to/HATM/preprocessing/magic_preprocess_to_tfrecords.py /directory/with/shuffled/txt/data /path/to/word-list/file/input.wlist.index /destination/directory --preprocessing_type test
 ```
 
 ### 1. Navigate to directory containing trained model checkpoint
+
+```
+cd /path/to/com1/
+```
+
+The trained model directory should have a structure similar to the following:
+
+    .
+    ├── ...
+    ├── atm                                        # Symbolic link to `/path/to/HATM/`
+    ├── LOGs
+    ├── data
+    ├── model                                      # Contains checkpoints for trained model after each epoch
+    │   ├── checkpoint          
+    │   ├── net_arch.pickle
+    │   ├── prompt_embeddings.txt
+    │   ├── weights.ckpt-1.data-00000-of-00001
+    │   ├── ...
+    │   ├── weights.ckpt-3.data-00000-of-00001     # 3 epochs in this model
+    │   ├── ...
+    │   └── weights.ckpt.meta             
+    └── ...
 
 ### 2. Run test script
 
