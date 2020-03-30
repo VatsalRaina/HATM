@@ -167,6 +167,7 @@ class AttentionTopicModel(BaseModel):
                                                      size=2 * self.network_architecture['n_rhid'],
                                                      batch_size=batch_size * (n_samples + 1),
                                                      idx=0)
+        """
         k_multihead = 5
         for i in range(k_multihead-1):
             curr_hidden, curr_attention = self._bahdanau_attention(memory=outputs, seq_lens=a_seqlens, maxlen=maxlen,
@@ -185,7 +186,7 @@ class AttentionTopicModel(BaseModel):
                                         regularizer=slim.l2_regularizer(L2),
                                         device='/GPU:0')
             hidden = tf.matmul(hidden, tf.transpose(resize))
-
+        """
         with tf.variable_scope('Grader') as scope:
             for layer in xrange(self.network_architecture['n_flayers']):
                 hidden = slim.fully_connected(hidden,
@@ -346,7 +347,7 @@ class AttentionTopicModel(BaseModel):
                 valid_responses, \
                 valid_response_lengths, _, _ = valid_iterator.get_next(name='valid_data')
         
-                """
+                
  
                 # Data augmentation (positive example generation)
                 aug_q_ids = self._sample_augment(q_ids=q_ids)
@@ -640,7 +641,7 @@ class AttentionTopicModel(BaseModel):
                                                               p_id_weights=bert_weights)
 
 
-                """
+                
                 targets, q_ids = self._sample_refined(targets=targets,
                                                       q_ids=q_ids,
                                                       batch_size=batch_size,
@@ -657,10 +658,10 @@ class AttentionTopicModel(BaseModel):
 
 
                 # Duplicate list of tensors for negative example generation and data augmentation               
-                response_lengths = tf.tile(response_lengths, [n_samples + 1])
-                responses = tf.tile(responses, [1 + n_samples, 1])
-                valid_response_lengths = tf.tile(valid_response_lengths, [n_samples + 1])
-                valid_responses = tf.tile(valid_responses, [1 + n_samples, 1])
+                response_lengths = tf.tile(response_lengths, [n_samples + 39])
+                responses = tf.tile(responses, [39 + n_samples, 1])
+                valid_response_lengths = tf.tile(valid_response_lengths, [n_samples + 39])
+                valid_responses = tf.tile(valid_responses, [39 + n_samples, 1])
 
                 """
 
@@ -693,7 +694,7 @@ class AttentionTopicModel(BaseModel):
 
             topics = tf.convert_to_tensor(topics, dtype=tf.int32)
             topic_lens = tf.convert_to_tensor(topic_lens, dtype=tf.int32)
-            """
+            
             aug_topics = tf.convert_to_tensor(aug_topics, dtype=tf.int32)
             aug_topic_lens = tf.convert_to_tensor(aug_topic_lens, dtype=tf.int32)
             aug_topics2 = tf.convert_to_tensor(aug_topics2, dtype=tf.int32)
@@ -732,13 +733,13 @@ class AttentionTopicModel(BaseModel):
             aug_topic_lens18 = tf.convert_to_tensor(aug_topic_lens18, dtype=tf.int32)
             aug_topics19 = tf.convert_to_tensor(aug_topics19, dtype=tf.int32)
             aug_topic_lens19 = tf.convert_to_tensor(aug_topic_lens19, dtype=tf.int32)
-            """
+            
             prompts = tf.nn.embedding_lookup(topics, q_ids, name='train_prompt_loopkup')
             prompt_lens = tf.gather(topic_lens, q_ids)
 
             valid_prompts = tf.nn.embedding_lookup(topics, valid_q_ids, name='valid_prompt_loopkup')
             valid_prompt_lens = tf.gather(topic_lens, valid_q_ids)
-            """
+            
             aug_prompts = tf.nn.embedding_lookup(aug_topics, aug_q_ids, name='train_prompt_loopkup')
             aug_prompt_lens = tf.gather(aug_topic_lens, aug_q_ids)
 
@@ -1175,7 +1176,7 @@ class AttentionTopicModel(BaseModel):
         
             # Batch size for positive examples has doubled
             batch_size *= 20
-            """
+            
             # Construct Training & Validation models
             with tf.variable_scope(self._model_scope, reuse=True) as scope:
                 trn_predictions, \
