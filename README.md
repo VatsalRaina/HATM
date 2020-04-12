@@ -120,3 +120,8 @@ You should still be within `/path/to/com1/`. Now the directory structure should 
     │   ├── predictions.txt
     │   └── results.txt
     └── ...
+    
+    
+## Acknowledgements
+
+The code for the ATM and the HATM models was originally forked from [attention-topic-model](https://github.com/KaosEngineer/attention-topic-model) (though there have been substantial changes since the original fork).
