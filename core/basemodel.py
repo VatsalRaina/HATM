@@ -396,9 +396,9 @@ class BaseModel(object):
         return targets, q_ids, responses, response_lengths
            
 
-    def _bahdanau_attention(self, memory, seq_lens, maxlen, query, size, batch_size, idx, name='Attention'):
+    def _bahdanau_attention(self, memory, seq_lens, maxlen, query, size, batch_size, idx=0, name='Attention'):
         WD = self.network_architecture['L2']
-        with tf.variable_scope(name+str(idx)) as scope:
+        with tf.variable_scope(name) as scope:
             with slim.arg_scope([slim.model_variable],
                                 initializer=self.network_architecture['initializer'](self._seed+idx),
                                 regularizer=slim.l2_regularizer(WD),

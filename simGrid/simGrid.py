@@ -75,6 +75,10 @@ class SimGrid(BaseModel):
         cosx = tf.clip_by_value(cos, -1.0, 1.0)
         return cosx
 
+    def euclidean(self, xx, yy, ax):
+        diff = xx - yy
+        square_diff = tf.square(diff)
+        return tf.reduce_sum(square_diff, axis=ax)
 
     def _construct_network(self, a_input, a_seqlens, q_input, q_seqlens, max_q_len, max_a_len, batch_size, is_training=False, keep_prob=1.0):
         """
@@ -91,6 +95,10 @@ class SimGrid(BaseModel):
         :return: predictions, probabilities, logits, attention
         """
 
+        # Get IDFs for each content word
+        np_idf = np.loadtxt("/home/alta/relevance/vr311/data_vatsal/BULATS/content_words/idf_global.txt", dtype=np.float32)
+        idf = tf.convert_to_tensor(np_idf, dtype=tf.float32)
+
         L2 = self.network_architecture['L2']
         initializer = self.network_architecture['initializer']
 
@@ -106,11 +114,75 @@ class SimGrid(BaseModel):
                                             regularizer=slim.l2_regularizer(L2),
                                             device='/GPU:0')
            
-
             a_inputs = tf.nn.dropout(tf.nn.embedding_lookup(embedding, a_input, name='embedded_data'),
                                      keep_prob=keep_prob, seed=self._seed + 1)
             q_inputs = tf.nn.dropout(tf.nn.embedding_lookup(embedding, q_input, name='embedded_data'),
                                      keep_prob=keep_prob, seed=self._seed + 2)
+
+
+            embedding2 = slim.model_variable('word_embedding2',
+                                            shape=[self.network_architecture['n_in'],
+                                                   self.network_architecture['n_ehid']],
+                                            initializer=tf.truncated_normal_initializer(stddev=0.1),
+                                            regularizer=slim.l2_regularizer(L2),
+                                            device='/GPU:0')
+
+            a_inputs2 = tf.nn.dropout(tf.nn.embedding_lookup(embedding2, a_input, name='embedded_data'),
+                                     keep_prob=keep_prob, seed=self._seed + 11)
+            q_inputs2 = tf.nn.dropout(tf.nn.embedding_lookup(embedding2, q_input, name='embedded_data'),
+                                     keep_prob=keep_prob, seed=self._seed + 22)
+
+
+            embedding3 = slim.model_variable('word_embedding3',
+                                            shape=[self.network_architecture['n_in'],
+                                                   self.network_architecture['n_ehid']],
+                                            initializer=tf.truncated_normal_initializer(stddev=0.1),
+                                            regularizer=slim.l2_regularizer(L2),
+                                            device='/GPU:0')
+
+            a_inputs3 = tf.nn.dropout(tf.nn.embedding_lookup(embedding3, a_input, name='embedded_data'),
+                                     keep_prob=keep_prob, seed=self._seed + 111)
+            q_inputs3 = tf.nn.dropout(tf.nn.embedding_lookup(embedding3, q_input, name='embedded_data'),
+                                     keep_prob=keep_prob, seed=self._seed + 222)
+
+        """
+            TEMP to try the impact of using BiLSTMs for learning separate word embeddings for prompt and response words
+            
+            q_inputs_fw = tf.transpose(q_inputs, [1, 0, 2])
+            q_inputs_bw = tf.transpose(tf.reverse_sequence(q_inputs, seq_lengths=q_seqlens, seq_axis=1, batch_axis=0),
+                                       [1, 0, 2])
+
+            a_inputs_fw = tf.transpose(a_inputs, [1, 0, 2])
+            a_inputs_bw = tf.transpose(tf.reverse_sequence(a_inputs, seq_lengths=a_seqlens, seq_axis=1, batch_axis=0),
+                                       [1, 0, 2])
+
+        # Response Encoder RNN
+        with tf.variable_scope('RNN_Q_FW', initializer=initializer(self._seed)) as scope:
+            rnn_fw = tf.contrib.rnn.LSTMBlockFusedCell(num_units=self.network_architecture['n_phid'])
+            outputs_fw, _ = rnn_fw(q_inputs_fw, sequence_length=q_seqlens, dtype=tf.float32)
+
+        with tf.variable_scope('RNN_Q_BW', initializer=initializer(self._seed)) as scope:
+            rnn_bw = tf.contrib.rnn.LSTMBlockFusedCell(num_units=self.network_architecture['n_phid'])
+            outputs_bw, _ = rnn_bw(q_inputs_bw, sequence_length=q_seqlens, dtype=tf.float32)
+
+        outputs = tf.concat([outputs_fw, outputs_bw], axis=2)
+        outputs = tf.transpose(outputs, [1, 0, 2])
+        q_inputs = tf.nn.dropout(outputs, keep_prob=keep_prob, seed=self._seed)
+
+
+        # Response Encoder RNN
+        with tf.variable_scope('RNN_A_FW', initializer=initializer(self._seed)) as scope:
+            rnn_fw = tf.contrib.rnn.LSTMBlockFusedCell(num_units=self.network_architecture['n_phid'])
+            outputs_fw, _ = rnn_fw(a_inputs_fw, sequence_length=a_seqlens, dtype=tf.float32)
+
+        with tf.variable_scope('RNN_A_BW', initializer=initializer(self._seed)) as scope:
+            rnn_bw = tf.contrib.rnn.LSTMBlockFusedCell(num_units=self.network_architecture['n_phid'])
+            outputs_bw, _ = rnn_bw(a_inputs_bw, sequence_length=a_seqlens, dtype=tf.float32)
+
+        outputs = tf.concat([outputs_fw, outputs_bw], axis=2)
+        outputs = tf.transpose(outputs, [1, 0, 2])
+        a_inputs = tf.nn.dropout(outputs, keep_prob=keep_prob, seed=self._seed)
+        """
 
         # Construct similarity grid of distances
         
@@ -119,10 +191,52 @@ class SimGrid(BaseModel):
         q_inputs = tf.tile(q_inputs, [1, max_a_len, 1])
         q_inputs = tf.reshape(q_inputs, [batch_size, max_a_len, max_q_len, self.network_architecture['n_ehid']])
 
-        grid = self.cosine(a_inputs, q_inputs, ax=3)
+        gridCos = self.cosine(a_inputs, q_inputs, ax=3)
         # Convert to 4D tensor [batch, height, width, channels] - for now, there is only one channel
-        grid = tf.expand_dims(grid, axis=3, name='expanded_grid')
+        gridCos = tf.expand_dims(gridCos, axis=3, name='expanded_grid')
 
+        """
+        Try multiple channels where each channel is a cosine distance with different initialisation seeds
+        Kind of like ensembling
+        """
+        a_inputs2 = tf.tile(a_inputs2, [1, max_q_len ,1])
+        a_inputs2 = tf.transpose(tf.reshape(a_inputs2, [batch_size,  max_q_len,  max_a_len, self.network_architecture['n_ehid']]), perm=[0,2,1,3])
+        q_inputs2 = tf.tile(q_inputs2, [1, max_a_len, 1])
+        q_inputs2 = tf.reshape(q_inputs2, [batch_size, max_a_len, max_q_len, self.network_architecture['n_ehid']])
+
+        gridCos2 = self.cosine(a_inputs2, q_inputs2, ax=3)
+        # Convert to 4D tensor [batch, height, width, channels] - for now, there is only one channel
+        gridCos2 = tf.expand_dims(gridCos2, axis=3, name='expanded_grid2')
+
+
+        a_inputs3 = tf.tile(a_inputs3, [1, max_q_len ,1])
+        a_inputs3 = tf.transpose(tf.reshape(a_inputs3, [batch_size,  max_q_len,  max_a_len, self.network_architecture['n_ehid']]), perm=[0,2,1,3])
+        q_inputs3 = tf.tile(q_inputs3, [1, max_a_len, 1])
+        q_inputs3 = tf.reshape(q_inputs3, [batch_size, max_a_len, max_q_len, self.network_architecture['n_ehid']])
+
+        gridCos3 = self.cosine(a_inputs3, q_inputs3, ax=3)
+        # Convert to 4D tensor [batch, height, width, channels] - for now, there is only one channel
+        gridCos3 = tf.expand_dims(gridCos3, axis=3, name='expanded_grid3')
+
+
+       # gridEuc = self.cosine(a_inputs, q_inputs, ax=3)
+        # Convert to 4D tensor [batch, height, width, channels] - 2 channels now
+       # gridEuc = tf.expand_dims(gridEuc, axis=3, name='expanded_grid')
+
+        """        
+        grid_p_idf = tf.gather(idf, q_input)
+        grid_p_idf = tf.tile(grid_p_idf, [1, max_a_len])
+        grid_p_idf = tf.reshape(grid_p_idf, [batch_size, max_a_len, max_q_len])
+        grid_p_idf = tf.expand_dims(grid_p_idf, axis=3, name='expanded_grid2')
+
+        grid_a_idf = tf.gather(idf, a_input)
+        grid_a_idf = tf.tile(grid_a_idf, [1, max_q_len])
+        grid_a_idf = tf.transpose(tf.reshape(grid_a_idf, [batch_size,  max_q_len,  max_a_len]), perm=[0,2,1])
+        grid_a_idf = tf.expand_dims(grid_a_idf, axis=3, name='expanded_grid3')
+        """
+        grid = tf.concat([gridCos, gridCos2, gridCos3], axis=3)
+        #grid = tf.concat([gridCos, grid_p_idf, grid_a_idf], axis=3)
+        #grid = gridCos
         # Use tf.image.crop_and_resize() ---> beautiful function
         # Normalise lengths
         a_seqlens = tf.to_float(a_seqlens) / tf.to_float(max_a_len)
@@ -135,9 +249,6 @@ class SimGrid(BaseModel):
         boxes = tf.transpose(boxes)
         box_ind = tf.range(batch_size)
         img = tf.image.crop_and_resize(grid, boxes, box_ind, [180, 180])
-
-        # Re-size similarity grid to 180 x 180
-        #img = tf.image.resize_images(grid, [180, 180])
 
         # Pass image through Inception network
         with slim.arg_scope(resnet_v2.resnet_arg_scope()) as scope:
@@ -233,9 +344,11 @@ class SimGrid(BaseModel):
                 valid_responses, \
                 valid_response_lengths, _, _ = valid_iterator.get_next(name='valid_data')
         
-
+                # Augment by a factor of 2
+                """
                 aug_q_ids = self._sample_augment(q_ids=q_ids)
                 aug_valid_q_ids = self._sample_augment(q_ids=valid_q_ids)
+                
                 aug2_q_ids = self._sample_augment(q_ids=q_ids)
                 aug2_valid_q_ids = self._sample_augment(q_ids=valid_q_ids)
                 aug3_q_ids = self._sample_augment(q_ids=q_ids)
@@ -253,7 +366,8 @@ class SimGrid(BaseModel):
                 aug9_q_ids = self._sample_augment(q_ids=q_ids)
                 aug9_valid_q_ids = self._sample_augment(q_ids=valid_q_ids)
 
-
+                """
+                """
                 aug_targets, aug_q_ids = self._sample_refined(targets=targets,
                                                               q_ids=aug_q_ids,
                                                               batch_size=batch_size,
@@ -267,7 +381,8 @@ class SimGrid(BaseModel):
                                                               n_samples=n_samples,
                                                               arr_unigrams=arr_unigrams,
                                                               p_id_weights=bert_weights)
-
+                
+                
                 aug2_targets, aug2_q_ids = self._sample_refined(targets=targets,
                                                               q_ids=aug2_q_ids,
                                                               batch_size=batch_size,
@@ -372,7 +487,7 @@ class SimGrid(BaseModel):
                                                               arr_unigrams=arr_unigrams,
                                                               p_id_weights=bert_weights)
 
-
+                """
 
                 targets, q_ids = self._sample_refined(targets=targets,
                                                       q_ids=q_ids,
@@ -390,18 +505,19 @@ class SimGrid(BaseModel):
 
 
                 # Duplicate list of tensors for negative example generation and data augmentation               
-                response_lengths = tf.tile(response_lengths, [n_samples + 19])
-                responses = tf.tile(responses, [19 + n_samples, 1])
-                valid_response_lengths = tf.tile(valid_response_lengths, [n_samples + 19])
-                valid_responses = tf.tile(valid_responses, [19 + n_samples, 1])
+                response_lengths = tf.tile(response_lengths, [n_samples + 1])
+                responses = tf.tile(responses, [1 + n_samples, 1])
+                valid_response_lengths = tf.tile(valid_response_lengths, [n_samples + 1])
+                valid_responses = tf.tile(valid_responses, [1 + n_samples, 1])
 
 
 
             topics = tf.convert_to_tensor(topics, dtype=tf.int32)
             topic_lens = tf.convert_to_tensor(topic_lens, dtype=tf.int32)
-
+            """
             aug_topics = tf.convert_to_tensor(aug_topics, dtype=tf.int32)
             aug_topic_lens = tf.convert_to_tensor(aug_topic_lens, dtype=tf.int32)
+            
             aug_topics2 = tf.convert_to_tensor(aug_topics2, dtype=tf.int32)
             aug_topic_lens2 = tf.convert_to_tensor(aug_topic_lens2, dtype=tf.int32)
             aug_topics3 = tf.convert_to_tensor(aug_topics3, dtype=tf.int32)
@@ -418,7 +534,7 @@ class SimGrid(BaseModel):
             aug_topic_lens8 = tf.convert_to_tensor(aug_topic_lens8, dtype=tf.int32)
             aug_topics9 = tf.convert_to_tensor(aug_topics9, dtype=tf.int32)
             aug_topic_lens9 = tf.convert_to_tensor(aug_topic_lens9, dtype=tf.int32)
-
+            """
 
 
             prompts = tf.nn.embedding_lookup(topics, q_ids, name='train_prompt_loopkup')
@@ -426,13 +542,13 @@ class SimGrid(BaseModel):
 
             valid_prompts = tf.nn.embedding_lookup(topics, valid_q_ids, name='valid_prompt_loopkup')
             valid_prompt_lens = tf.gather(topic_lens, valid_q_ids)
-
+            """
             aug_prompts = tf.nn.embedding_lookup(aug_topics, aug_q_ids, name='train_prompt_loopkup')
             aug_prompt_lens = tf.gather(aug_topic_lens, aug_q_ids)
 
             aug_valid_prompts = tf.nn.embedding_lookup(aug_topics, aug_valid_q_ids, name='valid_prompt_loopkup')
             aug_valid_prompt_lens = tf.gather(aug_topic_lens, aug_valid_q_ids)
-
+             
             aug2_prompts = tf.nn.embedding_lookup(aug_topics2, aug2_q_ids, name='train_prompt_loopkup')
             aug2_prompt_lens = tf.gather(aug_topic_lens2, aug2_q_ids)
 
@@ -480,9 +596,10 @@ class SimGrid(BaseModel):
 
             aug9_valid_prompts = tf.nn.embedding_lookup(aug_topics9, aug9_valid_q_ids, name='valid_prompt_loopkup')
             aug9_valid_prompt_lens = tf.gather(aug_topic_lens9, aug9_valid_q_ids)
-
+            """
 
             # Make all prompts tensors of same dimensions
+            """
             num_zeros = tf.subtract(tf.shape(prompts)[1], tf.shape(aug_prompts)[1])
             zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
             prompts = tf.cond(tf.less(0,num_zeros), lambda: prompts, lambda: tf.concat([prompts, zeros], axis=1))
@@ -496,8 +613,8 @@ class SimGrid(BaseModel):
             aug_valid_prompts = tf.cond(tf.less(0,num_zeros), lambda: tf.concat([aug_valid_prompts, zeros], axis=1), lambda: aug_valid_prompts)
             valid_prompts = tf.concat([valid_prompts, aug_valid_prompts], axis=0)
             valid_prompt_lens = tf.concat([valid_prompt_lens, aug_valid_prompt_lens], axis=0)
-
-
+            
+            
             num_zeros = tf.subtract(tf.shape(prompts)[1], tf.shape(aug2_prompts)[1])
             zeros = tf.zeros([batch_size*(n_samples+1), tf.abs(num_zeros)], dtype=tf.int32)
             zeros2 = tf.zeros([tf.shape(prompts)[0], tf.abs(num_zeros)], dtype=tf.int32)
@@ -636,11 +753,15 @@ class SimGrid(BaseModel):
 
             # Batch size for positive examples has doubled
             batch_size *= 10
+            """
+            # TEMP augment by factor of 2
+            """
+            targets = tf.concat([targets, aug_targets], axis=0)
+            valid_targets = tf.concat([valid_targets, aug_valid_targets], axis=0)
+            batch_size *= 2
+            """            
 
-
-
-
-# Construct Tgaining & Validation models
+            # Construct Training & Validation models
             with tf.variable_scope(self._model_scope, reuse=True) as scope:
                 trn_predictions, \
                 trn_probabilities, \
@@ -821,9 +942,13 @@ class SimGrid(BaseModel):
                                                          max_a_len=tf.reduce_max(test_response_lengths),
                                                          batch_size=batch_size,
                                                          keep_prob=1.0)
+            if batch_size > 1:
+                loss = self._construct_xent_cost(targets=test_targets, logits=tf.squeeze(test_logits), pos_weight=1.0,
+                                                 is_training=False)
+            else:
+                loss = self._construct_xent_cost(targets=tf.squeeze(test_targets), logits=tf.squeeze(test_logits), pos_weight=1.0,
+                                                 is_training=False)
 
-            loss = self._construct_xent_cost(targets=test_targets, logits=tf.squeeze(test_logits), pos_weight=1.0,
-                                             is_training=False)
             self.sess.run(test_iterator.initializer)
             if cache_inputs:
                 return self._predict_loop_with_caching(loss, test_probabilities, test_targets,

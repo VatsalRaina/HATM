@@ -1365,7 +1365,7 @@ class HierarchicialAttentionTopicModel(BaseModel):
             
             variables1 =tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='.*((PROMPT_ATN)|(RNN_KEY)).*')
             variables2 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,
-                                           scope='.*((PROMPT_ATN)|(RNN_KEY)|(Attention)|(Resize)).*')
+                                           scope='.*((PROMPT_ATN)|(RNN_KEY)|(Attention)).*')
             """
             variables1 =tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='.*((PROMPT_ATN)|(RNN_KEY)|(ADV)).*')
             variables2 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,
@@ -1431,12 +1431,13 @@ class HierarchicialAttentionTopicModel(BaseModel):
                 #self._load_variables(load_scope='RNN_Q_BW', new_scope='RNN_Q_BW', load_path=load_path, trainable=True)
                 self._load_variables(load_scope='RNN_A_FW', new_scope='RNN_A_FW', load_path=load_path, trainable=True)
                 self._load_variables(load_scope='RNN_A_BW', new_scope='RNN_A_BW', load_path=load_path, trainable=True)
-                k_multihead=5
-                for idx in range(k_multihead):
-                    self._load_variables(load_scope='Attention'+str(idx), new_scope='Attention'+str(idx), load_path=load_path,
-                                    trainable=True)
+                #k_multihead=5
+                #for idx in range(k_multihead):
+                    #self._load_variables(load_scope='Attention'+str(idx), new_scope='Attention'+str(idx), load_path=load_path,
+                                    #trainable=True)
+                self._load_variables(load_scope='Attention', new_scope='Attention', load_path=load_path, trainable=True)
                 self._load_variables(load_scope='Grader', new_scope='Grader', load_path=load_path, trainable=True)
-                self._load_variables(load_scope='Resize', new_scope='Resize', load_path=load_path, trainable=True)
+                #self._load_variables(load_scope='Resize', new_scope='Resize', load_path=load_path, trainable=True)
 
             # Update Log with training details
             with open(os.path.join(self._save_path, 'LOG.txt'), 'a') as f:
@@ -1529,7 +1530,7 @@ class HierarchicialAttentionTopicModel(BaseModel):
             print (format_str % (duration))
             self.save()
 
-    def predict(self, test_pattern, batch_size=20, cache_inputs=False, apply_bucketing=True):
+    def predict(self, test_pattern, batch_size=1, cache_inputs=False, apply_bucketing=True):
         with self._graph.as_default():
             test_files = tf.gfile.Glob(test_pattern)
             if apply_bucketing:
