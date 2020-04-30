@@ -37,3 +37,4 @@
 ./get_global_word_idfs.py
 ./get_global_word_idfs.py
 ./get_global_word_idfs.py
+./find_shortest_hatm_dists.py
