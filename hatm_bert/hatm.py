@@ -86,7 +86,7 @@ class HierarchicialAttentionTopicModel(BaseModel):
                                                    self.network_architecture['n_ehid']],
                                             initializer=tf.truncated_normal_initializer(stddev=0.1),
                                             regularizer=slim.l2_regularizer(L2),
-                                            device='/CPU:0')
+                                            device='/GPU:0')
 
             p_inputs = tf.nn.embedding_lookup(embedding, p_input, name='embedded_data')
 
@@ -124,7 +124,7 @@ class HierarchicialAttentionTopicModel(BaseModel):
             v = slim.model_variable('v',
                                     shape=[2 * self.network_architecture['n_phid'], 1],
                                     regularizer=slim.l2_regularizer(L2),
-                                    device='/CPU:0')
+                                    device='/GPU:0')
 
             tmp = tf.nn.tanh(mems + tkeys)
             tmp = tf.reshape(tmp, shape=[-1, 2 *self.network_architecture['n_phid']])
@@ -150,7 +150,7 @@ class HierarchicialAttentionTopicModel(BaseModel):
         # Question Encoder RNN
         with tf.variable_scope('Embeddings', initializer=initializer(self._seed)) as scope:
             embedding = slim.model_variable('word_embedding',
-                                            trainable=False,
+                                            trainable=True,
                                             shape=[self.network_architecture['n_in'],
                                                    self.network_architecture['n_ehid']],
                                             initializer=tf.truncated_normal_initializer(stddev=0.1),
@@ -236,6 +236,20 @@ class HierarchicialAttentionTopicModel(BaseModel):
                 a = tf.nn.dropout(a, attention_keep_prob, seed=self._seed)
             prompt_attention = a / tf.reduce_sum(a, axis=1, keep_dims=True)
             attended_prompt_embedding = tf.matmul(prompt_attention, prompt_embeddings)
+
+        """
+        This is a temporary measure to compute the shortest cosine distance between the test prompt embedding and the set of trained prompt embeddings
+        
+        # Assume batch size is 1 for this to work
+        temp_attended_prompt_embeddings = tf.squeeze(attended_prompt_embeddings)
+        temp_attended_prompt_embeddings = tf.tile(temp_attended_prompt_embeddings, [379])
+        temp_attended_prompt_embeddings = tf.reshape(temp_attended_prompt_embeddings, [379, 2 * self.network_architecture['n_phid']])
+        x_norm = tf.nn.l2_normalize(temp_attended_prompt_embeddings, dim=1)
+        y_norm = tf.nn.l2_normalize(prompt_embeddings, dim=1)
+        cos = tf.reduce_sum(x_norm * y_norm, axis=1)
+        cosx = tf.clip_by_value(cos, -1.0, 1.0)
+        max_cosx = tf.reduce_max(cosx)       
+        """
 
         # Bias on robust prompt sentence embeddings ---> Very successful when combined with data augmentation!
         """         
@@ -480,7 +494,7 @@ class HierarchicialAttentionTopicModel(BaseModel):
                 
                       
                 # Data augmentation (positive example generation)
-                
+                """
                 aug_p_ids = self._sample_augment(q_ids=p_ids)
                 aug_valid_p_ids = self._sample_augment(q_ids=valid_p_ids)
                 aug2_p_ids = self._sample_augment(q_ids=p_ids)
@@ -776,7 +790,7 @@ class HierarchicialAttentionTopicModel(BaseModel):
                                                                           n_samples=n_samples,
                                                                           arr_unigrams=arr_unigrams,
                                                                           p_id_weights=bert_weights)
-                
+                """
                 targets, p_ids = self._sample_refined(targets=targets,
                                                       q_ids=p_ids,
                                                       batch_size=batch_size,
@@ -794,14 +808,14 @@ class HierarchicialAttentionTopicModel(BaseModel):
 
 
             # Duplicate list of tensors for negative example generation and data augmentation
-            response_lengths = tf.tile(response_lengths, [n_samples + 39])
-            responses = tf.tile(responses, [39 + n_samples, 1])
-            valid_response_lengths = tf.tile(valid_response_lengths, [n_samples + 39])
-            valid_responses = tf.tile(valid_responses, [39 + n_samples, 1])
+            response_lengths = tf.tile(response_lengths, [n_samples + 1])
+            responses = tf.tile(responses, [1 + n_samples, 1])
+            valid_response_lengths = tf.tile(valid_response_lengths, [n_samples + 1])
+            valid_responses = tf.tile(valid_responses, [1 + n_samples, 1])
 
             topics = tf.convert_to_tensor(topics, dtype=tf.int32)
             topic_lens = tf.convert_to_tensor(topic_lens, dtype=tf.int32)
-             
+            """ 
             aug_topics = tf.convert_to_tensor(aug_topics, dtype=tf.int32)
             aug_topic_lens = tf.convert_to_tensor(aug_topic_lens, dtype=tf.int32)
             aug_topics2 = tf.convert_to_tensor(aug_topics2, dtype=tf.int32)
@@ -840,7 +854,7 @@ class HierarchicialAttentionTopicModel(BaseModel):
             aug_topic_lens18 = tf.convert_to_tensor(aug_topic_lens18, dtype=tf.int32)
             aug_topics19 = tf.convert_to_tensor(aug_topics19, dtype=tf.int32)
             aug_topic_lens19 = tf.convert_to_tensor(aug_topic_lens19, dtype=tf.int32)            
-            
+            """
 
             
 
@@ -849,7 +863,7 @@ class HierarchicialAttentionTopicModel(BaseModel):
             
             valid_prompts = tf.nn.embedding_lookup(topics, valid_p_ids, name='valid_prompot_loopkup')
             valid_prompt_lens = tf.gather(topic_lens, valid_p_ids)
-            
+            """
             aug_prompts = tf.nn.embedding_lookup(aug_topics, aug_p_ids, name='train_prompot_loopkup')
             aug_prompt_lens = tf.gather(aug_topic_lens, aug_p_ids)
 
@@ -963,7 +977,7 @@ class HierarchicialAttentionTopicModel(BaseModel):
 
             aug19_valid_prompts = tf.nn.embedding_lookup(aug_topics19, aug19_valid_p_ids, name='valid_prompt_loopkup')
             aug19_valid_prompt_lens = tf.gather(aug_topic_lens19, aug19_valid_p_ids)
-
+            
 
 
  
@@ -1288,7 +1302,7 @@ class HierarchicialAttentionTopicModel(BaseModel):
 
             p_ids = tf.concat([p_ids, aug_p_ids, aug2_p_ids, aug3_p_ids, aug4_p_ids, aug5_p_ids, aug6_p_ids, aug7_p_ids, aug8_p_ids, aug9_p_ids, aug10_p_ids, aug11_p_ids, aug12_p_ids, aug13_p_ids, aug14_p_ids, aug15_p_ids, aug16_p_ids, aug17_p_ids, aug18_p_ids, aug19_p_ids], axis=0)
             valid_p_ids = tf.concat([valid_p_ids, aug_valid_p_ids, aug2_valid_p_ids, aug3_valid_p_ids, aug4_valid_p_ids, aug5_valid_p_ids, aug6_valid_p_ids, aug7_valid_p_ids, aug8_valid_p_ids, aug9_valid_p_ids, aug10_valid_p_ids, aug11_valid_p_ids, aug12_valid_p_ids, aug13_valid_p_ids, aug14_valid_p_ids, aug15_valid_p_ids, aug16_valid_p_ids, aug17_valid_p_ids, aug18_valid_p_ids, aug19_valid_p_ids], axis=0)
-            
+            """
             # Construct Training & Validation models
             with tf.variable_scope(self._model_scope, reuse=True) as scope:
                 trn_predictions, \
@@ -1425,7 +1439,7 @@ class HierarchicialAttentionTopicModel(BaseModel):
             if load_path != None:
                 print 'Loading ATM model parameters'
                 self._load_variables(load_scope='atm/Embeddings/word_embedding',
-                                     new_scope='atm/Embeddings/word_embedding', load_path=load_path, trainable=False)
+                                     new_scope='atm/Embeddings/word_embedding', load_path=load_path, trainable=True)
                 #self._load_variables(load_scope='RNN_Q_FW', new_scope='RNN_Q_FW', load_path=load_path, trainable=True)
                 #self._load_variables(load_scope='RNN_Q_BW', new_scope='RNN_Q_BW', load_path=load_path, trainable=True)
                 self._load_variables(load_scope='RNN_A_FW', new_scope='RNN_A_FW', load_path=load_path, trainable=True)

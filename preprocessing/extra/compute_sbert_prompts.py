@@ -6,6 +6,7 @@ import sys
 
 import numpy as np
 
+from sentence_transformers import SentenceTransformer    # Requires pytorch and python 3.6, so use virtual environment
 
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -24,26 +25,21 @@ def main(argv=None):
     with open('CMDs/get_bert_dists.cmd', 'a') as f:
         f.write(' '.join(sys.argv) + '\n')
 
-    train_prompt_embeddings = np.loadtxt('/home/alta/relevance/vr311/models_min_data/baseline/HATM/com1/BULATS_prompts/prompt_embeddings.txt', dtype=np.float32)  
-    test_prompt_embeddings = np.loadtxt('/home/alta/relevance/vr311/models_min_data/baseline/HATM/com1/LINSK_prompts_56/prompt_embeddings.txt', dtype=np.float32)
+    
+    train_prompt_path = '/home/alta/relevance/vr311/data_vatsal/BULATS/tfrecords_train/sorted_topics.txt'
+    f = open(train_prompt_path, "r")
+    samples = f.readlines()
+    train_prompts = [line.rstrip('\n') for line in samples]
+    f.close()
+    print(len(train_prompts))
 
-    sbert_dists = np.empty([56, 379])
-    
-    for i, pr1 in enumerate(test_prompt_embeddings):
-        print(i)
-        for j, pr2 in enumerate(train_prompt_embeddings):
-            a = pr1.reshape(1,400)
-            b = pr2.reshape(1,400)
-            dist = cosine_similarity(a,b)[0][0]
-            sbert_dists[i][j] = dist
+    model = SentenceTransformer('bert-base-nli-mean-tokens')
+    train_prompt_embeddings = model.encode(train_prompts)
 
-    min_dists = np.amin(sbert_dists, axis=1)    
-    print(min_dists)
     
-    
-    save_path = '/home/alta/relevance/vr311/data_vatsal/LINSK/Andrey/LINSKuns03evl03_ALL_naive/info'
-    path = os.path.join(save_path, 'hatm_dists.txt')
-    np.savetxt(path, min_dists)
+    save_path = '/home/alta/relevance/vr311/models_min_data/baseline/HATM_bert/ATM_baseline/BERT_prompts'
+    path = os.path.join(save_path, 'prompt_embeddings.txt')
+    np.savetxt(path, train_prompt_embeddings)
     
 
 if __name__ == '__main__':

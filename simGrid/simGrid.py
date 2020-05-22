@@ -894,7 +894,7 @@ class SimGrid(BaseModel):
             print(format_str % (duration))
             self.save()
 
-    def predict(self, test_pattern, batch_size=20, cache_inputs=False, apply_bucketing=True):
+    def predict(self, test_pattern, batch_size=1, cache_inputs=False, apply_bucketing=True):
         """
         Run inference on a trained model on a dataset.
         :param test_pattern: filepath to dataset to run inference/evaluation on

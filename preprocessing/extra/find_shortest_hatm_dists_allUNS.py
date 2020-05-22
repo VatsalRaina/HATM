@@ -25,9 +25,9 @@ def main(argv=None):
         f.write(' '.join(sys.argv) + '\n')
 
     train_prompt_embeddings = np.loadtxt('/home/alta/relevance/vr311/models_min_data/baseline/HATM/com1/BULATS_prompts/prompt_embeddings.txt', dtype=np.float32)  
-    test_prompt_embeddings = np.loadtxt('/home/alta/relevance/vr311/models_min_data/baseline/HATM/com1/LINSK_prompts_56/prompt_embeddings.txt', dtype=np.float32)
+    test_prompt_embeddings = np.loadtxt('/home/alta/relevance/vr311/models_min_data/baseline/HATM/com1/LINSK_unsALL_prompts/prompt_embeddings.txt', dtype=np.float32)
 
-    sbert_dists = np.empty([56, 379])
+    sbert_dists = np.empty([170072, 379])
     
     for i, pr1 in enumerate(test_prompt_embeddings):
         print(i)
@@ -38,12 +38,12 @@ def main(argv=None):
             sbert_dists[i][j] = dist
 
     min_dists = np.amin(sbert_dists, axis=1)    
-    print(min_dists)
+    #print(min_dists)
     
     
-    save_path = '/home/alta/relevance/vr311/data_vatsal/LINSK/Andrey/LINSKuns03evl03_ALL_naive/info'
+    save_path = '/home/alta/relevance/vr311/data_vatsal/LINSK/Andrey/LINSKuns03evl03_ALL_naive'
     path = os.path.join(save_path, 'hatm_dists.txt')
-    np.savetxt(path, min_dists)
+    np.savetxt(path, sbert_dists)
     
 
 if __name__ == '__main__':

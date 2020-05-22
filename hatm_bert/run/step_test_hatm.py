@@ -18,7 +18,7 @@ from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import auc
 sns.set()
 
-from hatm.hatm import HierarchicialAttentionTopicModel
+from hatm_bert.hatm import HierarchicialAttentionTopicModel
 from core.utilities.utilities import text_to_array, IdToWordConverter
 
 commandLineParser = argparse.ArgumentParser(description='Compute features from labels.')
@@ -96,7 +96,7 @@ def main(argv=None):
     np.savetxt(os.path.join(args.output_dir, 'labels-probs.txt'), data)
     np.savetxt(os.path.join(args.output_dir, 'labels.txt'), test_labels_arr)
     np.savetxt(os.path.join(args.output_dir, 'predictions.txt'), test_probs_arr)
-    np.savetxt(os.path.join(args.output_dir, 'prompt_attention.txt'), test_attention_arr)
+    #np.savetxt(os.path.join(args.output_dir, 'prompt_attention.txt'), test_attention_arr)
 
     if args.save_reordered_input:
         np.savetxt(os.path.join(args.output_dir, 'response_lengths.txt'), test_response_lens_arr)
